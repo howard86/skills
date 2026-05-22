@@ -20,7 +20,7 @@ The decided stack for a Bun + Turborepo monorepo and the order to roll it out. U
 | Lockfile | `bun install --frozen-lockfile` | CI |
 | Tests | `bun test` (chosen, not scaffolded until first test) | n/a until needed |
 
-Build is **not** in CI — trust Vercel/host preview deploys.
+Build is **not** in CI — trust Vercel/host preview deploys (the shared CI workflow runs with `run-build: false`).
 
 ## Why these choices (short)
 
@@ -30,6 +30,7 @@ Build is **not** in CI — trust Vercel/host preview deploys.
 - **`typos` over `cspell`**: allowlist-based, won't drown a domain-rich repo (fashion, scientific, brand names) in false positives.
 - **Dependabot over Renovate**: built-in to GitHub, zero external service; accept the per-package PR noise. (User preference; Renovate would be more configurable.)
 - **`bun test` over Vitest**: native, zero extra dep, fastest for Bun-runtime code. Pick this only if web tests will be light; Vitest is the safer pick if there's heavy React/jsdom testing.
+- **CI via the shared [`howard86/actions`](https://github.com/howard86/actions) repo**, not hand-rolled steps: one SHA-pinned source of truth for the `checkout`/`setup-bun`/`typos`/`gitleaks`/`actionlint` versions, bumped once and propagated by Dependabot, instead of re-pinning them in every repo's `ci.yml`. Adopt the reusable workflow wholesale, or use the `setup`/`quality` composites à la carte.
 
 ## Rollout — one PR, atomic commits
 
@@ -50,16 +51,28 @@ Order matters: tsconfig fix must land before typecheck gate turns on.
    - `.husky/pre-push`: `bun run check && bun x turbo run typecheck && typos && gitleaks detect --redact --log-opts="origin/main..HEAD"`
    - `.husky/commit-msg`: `bunx --no-install commitlint --edit "$1"`
    - Add `commitlint.config.js`: `module.exports = { extends: ["@commitlint/config-conventional"] }`
-5. **Typos config** — `typos.toml` at root with `[default.extend-words]` for domain terms and `[files] extend-exclude = ["bun.lock", "*.svg", "**/staging/**", "node_modules", ".next", "dist"]`.
-6. **Gitleaks config** — `.gitleaks.toml` extending defaults with allowlist for `.env.example` and known fixture values.
-7. **CI workflow** — `.github/workflows/ci.yml`:
-   - Triggers: `pull_request`, `push: branches: [main]`
-   - `actions/checkout@v4` with `fetch-depth: 0` (gitleaks history)
-   - `oven-sh/setup-bun@v2` using `bun-version-file: package.json` (reads `packageManager`)
-   - `bun install --frozen-lockfile`
-   - `bun run check` → `bun x turbo run typecheck` → `typos` → `gitleaks detect --redact`
-   - Restore `.turbo/` via `actions/cache` keyed on lockfile + workflow.
-8. **Dependabot** — `.github/dependabot.yml`, weekly, grouped `dev-dependencies` and `production-dependencies`, ignore majors for framework anchors (`react`, `next`, `prisma`). See watch-points.
+5. **Typos config (optional).** The `quality` action ships a bundled default and auto-detects a repo-local `_typos.toml`/`typos.toml`/`.typos.toml`. Add one only for domain vocab: `[default.extend-words]` plus `[files] extend-exclude = ["bun.lock", "*.svg", "**/staging/**", "node_modules", ".next", "dist"]`.
+6. **Gitleaks config (optional).** Same pattern — bundled default, auto-detects repo-local `.gitleaks.toml`/`gitleaks.toml`. Add one only to allowlist `.env.example` and known fixture values.
+7. **CI workflow** — `.github/workflows/ci.yml` calls the shared reusable workflow. SHA-pin with a `# vX.Y.Z` comment (Dependabot bumps it):
+   ```yaml
+   name: CI
+   on:
+     push: { branches: [main] }
+     pull_request: { branches: [main] }
+   jobs:
+     ci:
+       uses: howard86/actions/.github/workflows/ci.yml@<sha> # v1.0.0
+       permissions:
+         contents: read
+       with:
+         run-test: false    # flip true once the first test exists
+         run-build: false   # build stays out of CI (preview deploys cover it)
+       secrets:
+         gitleaks-license: ${{ secrets.GITLEAKS_LICENSE }}   # only needed for org accounts
+   ```
+   Requires root scripts `check` + `typecheck` (and `test`/`build` only when their toggles are on). Set `node-version: "24"` if a workspace needs Node; `working-directory` for a nested package.
+   **Complex/multi-job repo:** skip the reusable workflow and compose à la carte — `actions/checkout@<sha>` (`fetch-depth: 0`) → `howard86/actions/setup@<sha>` → your `check`/`typecheck` `run:` steps → `howard86/actions/quality@<sha>` with `github-token: ${{ secrets.GITHUB_TOKEN }}`.
+8. **Dependabot** — `.github/dependabot.yml`, weekly. Two ecosystems: `npm` (grouped `dev-dependencies`/`production-dependencies`, ignore majors for `react`/`next`/`prisma`) **and `github-actions`** so the SHA-pinned `howard86/actions` ref auto-bumps from each `vX.Y.Z` release. See watch-points.
 9. **Docs** — short section in README/AGENTS.md: what runs at each gate, how to bypass (`--no-verify`), how to install binaries locally (`brew install typos-cli gitleaks`).
 
 ## Watch-points
@@ -69,10 +82,15 @@ Order matters: tsconfig fix must land before typecheck gate turns on.
 - **Gitleaks in CI needs full history**: default `actions/checkout` fetches `fetch-depth: 1`; gitleaks will only scan the tip. Set `fetch-depth: 0`.
 - **`gitleaks protect --staged`** is the right invocation for pre-commit (only staged diff). `gitleaks detect` is for pre-push and CI (commit range or full history).
 - **`bun test` vs Vitest** decision: revisit if web app testing becomes substantial; jsdom/RTL is rougher in `bun test`.
+- **gitleaks-action v2 needs a license for org accounts.** Personal/public repos run fine without; under a GitHub **organization** set `secrets.GITLEAKS_LICENSE` or the gitleaks step fails. (The `quality` action / reusable workflow pass it through but don't require it.)
+- **Reusable workflow expects `check`/`typecheck`/`test`/`build` root scripts**, but the `test`/`build` steps are `if`-guarded — keep `run-test`/`run-build` false until those scripts exist, then flip them. `check` + `typecheck` always run.
+- **Pin `howard86/actions` to a SHA with a `# vX.Y.Z` comment**, never a moving tag — that's what the actions repo is built around and what the `github-actions` Dependabot ecosystem bumps.
+- **`actionlint` is now a CI gate** (inside `quality`): malformed workflow YAML fails the run. Usually a feature; just be aware when hand-editing workflows.
 
 ## When to deviate
 
 - **Team repo with strong existing ESLint rules**: keep ESLint, drop Biome. Don't try to run both.
-- **Project requires guaranteed build success on every merge**: add `bun x turbo run build` to CI step (accept ~2-3 min total).
+- **Project requires guaranteed build success on every merge**: flip `run-build: true` (or `run-build: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}` for main-only). Adds ~2-3 min; requires a root `build` script.
 - **Domain has heavy in-package brand vocabulary**: still prefer `typos` over `cspell` — extend the allowlist instead.
 - **Solo project, low PR volume**: skip Dependabot, run `bun outdated` manually quarterly.
+- **Can't depend on `howard86/actions`** (different org, air-gapped, or you want zero external action deps): inline the steps the reusable workflow runs — `checkout` (`fetch-depth: 0`) → `setup-bun` → Turbo/Bun caches → frozen install → `check` → `typos` → `gitleaks` → `typecheck` — and pin each third-party action's SHA yourself.
