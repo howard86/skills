@@ -156,6 +156,8 @@ Skills I use daily for code work.
 - **[to-prd](./skills/engineering/to-prd/SKILL.md)** — Turn the current conversation context into a PRD and submit it as a GitHub issue. No interview — just synthesizes what you've already discussed.
 - **[zoom-out](./skills/engineering/zoom-out/SKILL.md)** — Tell the agent to zoom out and give broader context or a higher-level perspective on an unfamiliar section of code.
 - **[prototype](./skills/engineering/prototype/SKILL.md)** — Build a throwaway prototype to flesh out a design — either a runnable terminal app for state/business-logic questions, or several radically different UI variations toggleable from one route.
+- **[afk-issue-loop](./skills/engineering/afk-issue-loop/SKILL.md)** — Autonomously burn down a GitHub issue backlog into one PR per issue — claim, branch, implement, verify, open PR; never merges. Bundles a resumable headless runner and documents the `/loop` + cron orchestration paths.
+- **[bun-workspace-quality](./skills/engineering/bun-workspace-quality/SKILL.md)** — Code quality toolkit for Bun + Turborepo monorepos — Biome/ultracite lint, per-workspace typecheck, husky pre-commit/pre-push gates, GitHub Actions CI, typos, gitleaks, commitlint, Dependabot.
 
 ### Productivity
 
