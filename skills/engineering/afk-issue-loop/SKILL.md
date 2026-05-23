@@ -54,14 +54,26 @@ at PR creation** on a permission prompt. Settle these first:
    fresh fetch. Never work on the base branch.
 4. **IMPLEMENT** — only what the issue asks; follow the repo's CLAUDE.md /
    conventions; surgical changes; regenerate code if you touch schemas/protos/specs.
+   Commit as **atomic Conventional Commits** — one self-contained logical change
+   per commit (e.g. schema → API → web), not a single mega-commit.
 5. **VERIFY** — run the repo's lint / type-check / test; fix what you broke. If
    it can't be made green honestly, comment the blocker and **stop** — don't
    force past hooks.
-6. **SHIP** — push (let pre-push hooks run); open a PR with `Closes #<N>`. Never
-   merge, never force-push, never touch the base branch.
+6. **SHIP** — push (let pre-push hooks run); open a PR with `Closes #<N>` and a
+   **review-ready summary** (never a one-liner): `## What`, `## Decisions` — call
+   out every judgment call / spec ambiguity you resolved and ask the reviewer to
+   sanity-check it, plus any expected merge conflict with a sibling PR on shared
+   files — and `## Verification` — which lint/type/test gates you ran, *and*
+   anything you could not verify (e.g. UI not visually checked). Never merge,
+   force-push, or touch the base branch.
 7. **EXIT** — if the issue is satisfied/infeasible/under-specified, make no
    commits and label it a poison-pill (`claude-blocked` / HITL) so it isn't
    retried forever. When no buildable issues remain, stop cleanly.
+
+**Batch ordering:** when the backlog mixes schema/migration issues with plain
+ones, take the **non-migration issues first** (no DB state to manage), then the
+migration-bearing ones **one at a time** — never interleave two migrations
+(GOTCHAS #2).
 
 ## Cadence (for recurring runs)
 

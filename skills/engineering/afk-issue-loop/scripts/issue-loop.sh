@@ -128,7 +128,7 @@ slugify() {
 
 process_issue() {
   local n="$1"
-  local title body slug branch logfile prompt ahead pr_url
+  local title body slug branch logfile prompt ahead pr_url pr_body_file pr_body
 
   title="$(gh issue view "$n" --repo "$REPO" --json title --jq '.title')"
   body="$(gh issue view "$n" --repo "$REPO" --json body --jq '.body')"
@@ -160,6 +160,9 @@ process_issue() {
   git -C "$WORKTREE_DIR" clean -fdq || true
   git -C "$WORKTREE_DIR" checkout -B "$branch" "origin/$BASE_BRANCH" --quiet
 
+  pr_body_file="$STATE_DIR/pr-body-${n}.md"   # absolute, outside the worktree → never committed
+  rm -f "$pr_body_file"
+
   prompt="$(cat <<EOF
 You are implementing GitHub issue #${n} in this repository.
 
@@ -175,7 +178,8 @@ Rules:
 - Implement ONLY what this issue asks. Read CLAUDE.md / README / contributing docs if present, match existing style, keep changes surgical.
 - If you change anything with generated code (DB schemas, protobufs, OpenAPI specs, ORM models), run the project's codegen step before relying on the regenerated types.
 - Before committing, run the project's lint / type-check / test commands (check package.json scripts, Makefile, justfile, or README) and fix any failures you introduce.
-- Commit your work as one or more atomic Conventional Commits on the current branch. Do NOT push and do NOT open a pull request — an external wrapper handles that.
+- Commit your work as **atomic Conventional Commits** — one self-contained logical change per commit (e.g. schema, then API, then web), not a single mega-commit. Do NOT push and do NOT open a pull request — an external wrapper handles that.
+- After committing, write a review-ready PR summary to the file '${pr_body_file}' (an absolute path outside the repo — do NOT commit it; the wrapper reads it). Use these sections: '## What'; '## Decisions' — call out every judgment call or spec ambiguity you resolved and ask the reviewer to sanity-check it, plus any expected merge conflict with a sibling PR on shared files; '## Verification' — which lint/type/test gates you ran, and anything you could NOT verify (e.g. UI not visually checked).
 - If the issue is already satisfied, infeasible, or under-specified, make NO commits and end your reply with a line starting 'NO-OP:' explaining why.
 EOF
 )"
@@ -212,10 +216,18 @@ EOF
     return 0
   fi
 
+  # Prefer the model-written summary; fall back to a minimal template.
+  if [ -s "$pr_body_file" ]; then
+    pr_body="$(printf 'Closes #%s\n\n%s\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)' "$n" "$(cat "$pr_body_file")")"
+  else
+    pr_body="$(printf 'Closes #%s\n\nImplemented by the automated issue-loop (afk-issue-loop skill).\nSee individual commits for details.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)' "$n")"
+  fi
+  rm -f "$pr_body_file"
+
   pr_url="$(gh pr create --repo "$REPO" \
     --base "$BASE_BRANCH" --head "$branch" \
     --title "$title" \
-    --body "$(printf 'Closes #%s\n\nImplemented by the automated issue-loop (afk-issue-loop skill).\nSee individual commits for details.\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)' "$n")")"
+    --body "$pr_body")"
   log "opened PR: $pr_url"
   return 0
 }
