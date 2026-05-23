@@ -25,6 +25,16 @@ issues corrupts the local DB state.
 **Avoid:** serialize migration-bearing issues (one at a time, reset between), or
 give each worktree its own database. Don't interleave schema changes.
 
+**Validated recipe:** the cleanest isolation is a **throwaway clone** of the dev
+DB per migration batch — clone it, repoint the worktree's DB env (which may be
+*discrete* fields like `DATABASE_NAME`, not just one `DATABASE_URL`), implement +
+test, then drop the clone or surgically revert (drop the new objects + delete the
+`_prisma_migrations` row) before the next branch. Watch for repos where
+`prisma migrate dev` can't run at all: a pre-existing `CREATE INDEX CONCURRENTLY`
+migration fails the in-transaction shadow-DB replay (Prisma P3006). There,
+generate SQL with `migrate diff` (hand-qualify the schema, e.g. `"trade"."…"`)
+and let prod apply it via `migrate deploy` (no shadow).
+
 ## 3. Stale editor/LSP diagnostics after a branch switch
 
 After `git checkout -B <next> origin/<base>`, the editor model may still hold the
@@ -60,6 +70,14 @@ The result is a conflicting PR.
 
 **Avoid:** before claiming, check whether the issue depends on unmerged work.
 If its foundation isn't on the base branch yet, skip it and pick the next one.
+
+**Two operational follow-ups:** (a) treat the agent label as a *buildable
+frontier* — it should mean "buildable on the current base," not just
+"well-specified"; promote a blocked slice's label only once its blocker's PR
+merges. (b) Independently-clean PRs can still conflict *with each other* on shared
+files (a nav array, a contracts index, the server entrypoint); when you spot it,
+note the expected conflict + a suggested merge order in the PR body instead of
+silently shipping a landmine.
 
 ## 7. Non-durable crons die on restart
 
