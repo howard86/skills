@@ -68,3 +68,15 @@ the loop silently stops.
 
 **Avoid:** re-arm at session start, or prefer the headless script — its
 `done.txt` makes progress survive restarts without a live session.
+
+## 8. Re-processing already-shipped issues
+
+An issue stays open and labelled until its PR *merges* — `Closes #N` only fires on
+merge. A picker keyed off "open + labelled" therefore re-grabs every issue that
+already has an open PR, burning a full budget cycle each time before the
+duplicate-PR check (or a stale claim comment) skips it. `done.txt` only guards
+within one machine's headless runs; interactive runs have no such state.
+
+**Avoid:** at PICK, skip any issue that already has an open PR closing it or a
+`feature/issue-<N>-*` branch on the remote — check *before* implementing, not at
+PR-create time.

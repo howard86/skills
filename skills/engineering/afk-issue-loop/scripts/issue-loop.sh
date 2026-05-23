@@ -140,6 +140,15 @@ process_issue() {
   log "branch:  $branch"
   log "log:     $logfile"
 
+  # Already shipped? An issue stays open + labelled until its PR merges, so skip
+  # any issue that already has an open PR on a feature/issue-<n>-* branch before
+  # spending a budget cycle re-doing it (GOTCHAS #8).
+  if gh pr list --repo "$REPO" --state open --json headRefName --jq '.[].headRefName' 2>/dev/null \
+       | grep -q "^feature/issue-${n}-"; then
+    log "#$n already has an open PR (feature/issue-${n}-*) — skipping (GOTCHAS #8)"
+    return 0
+  fi
+
   if [ "$DRY_RUN" = "1" ]; then
     log "DRY_RUN — would implement and open a PR for #$n"
     return 0

@@ -41,8 +41,11 @@ at PR creation** on a permission prompt. Settle these first:
 ## Protocol (per issue)
 
 1. **PICK** — lowest-numbered open issue matching the label, **that is actually
-   buildable**. Ready ≠ buildable: skip issues whose scaffolding/migration lives
-   in an unmerged PR (see GOTCHAS #6).
+   buildable** and **not already shipped**. Ready ≠ buildable: skip issues whose
+   scaffolding/migration lives in an unmerged PR (GOTCHAS #6). Already shipped:
+   skip any issue that already has an open PR closing it or a
+   `feature/issue-<N>-*` branch on the remote — an issue stays open until its PR
+   *merges*, so a re-run will otherwise redo finished work (GOTCHAS #8).
 2. **CLAIM** (race-safe) — post a timestamped comment `Claiming via loop at
    <UTC>`; re-read comments after posting; if another claim is within the dedup
    window (~6h), skip to the next issue. Headless single-runner: `done.txt` is
@@ -71,4 +74,4 @@ at PR creation** on a permission prompt. Settle these first:
 - Set auto-expiry (e.g. 7 days); `durable:false` crons die on restart — re-arm
   at session start, or prefer the headless script's `done.txt` for persistence.
 
-See [GOTCHAS.md](GOTCHAS.md) for the seven landmines past runs hit.
+See [GOTCHAS.md](GOTCHAS.md) for the eight landmines past runs hit.
