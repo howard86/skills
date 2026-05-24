@@ -35,10 +35,16 @@ python3 "$S" --cwd . "Review src/auth.ts for security issues. Do not edit anythi
 cat task.md | python3 "$S" --cwd ../svc --json --timeout 3600 > result.json
 ```
 
-Exit code is `0` only when the turn ends cleanly (`stopReason: end_turn`).
+Exit code is `0` only when the turn ends cleanly (`stopReason: end_turn`);
+`3` means none of the preferred models were available (it dropped out).
 Useful flags: `--cwd` (where Kiro works), `--agent NAME`, `--model ID`,
 `--resume SESSION_ID` (continue a prior Kiro session), `--no-trust`,
 `--trust-tools "a,b"`, `--quiet`, `--verbose`, `--json`.
+
+**Model selection.** With no `--model`, the client forces the best available of
+`claude-opus-4.7` then `claude-opus-4.6`, and drops out (exit `3`) if neither is
+offered — it never silently falls back to kiro's task-routed `auto`. Pass an
+explicit `--model ID` (e.g. `--model auto`) to override.
 
 ## When to delegate (and when not to)
 

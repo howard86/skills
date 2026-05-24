@@ -29,6 +29,38 @@ def eprint(*a):
     print(*a, file=sys.stderr, flush=True)
 
 
+# Preferred models, best first. With no explicit --model we force the first of
+# these that kiro offers; if none are available we drop out rather than fall
+# back to kiro's task-routed "auto".
+PREFERRED_MODELS = ("claude-opus-4.7", "claude-opus-4.6")
+
+
+def resolve_preferred_model():
+    """Best available id from PREFERRED_MODELS, or None to drop out."""
+    try:
+        out = subprocess.run(
+            ["kiro-cli", "chat", "--list-models", "--format", "json"],
+            capture_output=True, text=True, timeout=30,
+        )
+    except (OSError, subprocess.SubprocessError) as e:
+        eprint(f"error: could not query kiro models: {e}")
+        return None
+    if out.returncode != 0:
+        eprint(f"error: `kiro-cli chat --list-models` failed: {out.stderr.strip()[:300]}")
+        return None
+    try:
+        offered = {m.get("model_id") for m in json.loads(out.stdout).get("models", [])}
+    except (json.JSONDecodeError, AttributeError):
+        eprint("error: could not parse kiro model list")
+        return None
+    for mid in PREFERRED_MODELS:
+        if mid in offered:
+            return mid
+    eprint(f"error: none of {list(PREFERRED_MODELS)} available "
+           f"(offered: {sorted(m for m in offered if m)}); dropping out")
+    return None
+
+
 class KiroACP:
     def __init__(self, args):
         self.args = args
@@ -205,7 +237,8 @@ def parse_args():
     p.add_argument("prompt", nargs="?", help="Task for Kiro. If omitted, read from stdin.")
     p.add_argument("--cwd", default=".", help="Working directory Kiro operates in (default: cwd).")
     p.add_argument("--agent", help="kiro-cli agent name to start the session with.")
-    p.add_argument("--model", help="Model id to use (e.g. claude-opus-4.6, auto).")
+    p.add_argument("--model", help="Model id to use. Omit to force the best available of "
+                                    "claude-opus-4.7 then claude-opus-4.6, else drop out.")
     p.add_argument("--resume", metavar="SESSION_ID", help="Continue an existing Kiro session.")
     p.add_argument("--timeout", type=float, default=1800, help="Max seconds for the turn (default 1800).")
     p.add_argument("--trust-tools", help="Comma-separated allowlist passed to kiro's --trust-tools.")
@@ -224,6 +257,13 @@ def main():
     if not prompt:
         eprint("error: empty prompt (pass an argument or pipe text on stdin)")
         return 2
+
+    if args.model is None:
+        resolved = resolve_preferred_model()
+        if resolved is None:
+            return 3
+        eprint(f"→ model {resolved}")
+        args.model = resolved
 
     client = KiroACP(args)
     try:
