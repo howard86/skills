@@ -51,12 +51,11 @@ reads the live diff itself rather than having it inlined. The brief tells it:
   clearly referenced by tracked diff hunks or live in the same source dirs; skip anything that looks
   like scratch, logs, `.env`, or credentials. If unsure, leave it untracked.
 - Let hooks run; never `--no-verify`. A failed hook means nothing was committed — fix the issue and run `git commit` again.
-- **Branch rule:** if `HEAD` is the remote default branch (main/master) → commit only, do NOT push or
-  open a PR. Otherwise → `git push -u` then `gh pr create` (base = remote default branch). Pass explicit
-  `--title` and `--body` so `gh` never drops into the interactive `$EDITOR` and hangs — title synthesized
-  to cover the *set* of commits, body summarizing them. Return the PR URL.
-- **PR "if possible":** only push/PR when `gh` is available and a remote is configured; otherwise stop
-  after committing and report that the PR was skipped + why.
+- **Branch rule:** if `HEAD` is the remote default branch (main/master) → commit only, no push or PR.
+  Otherwise: (1) verify `gh` is available (`gh --version`) and a remote is configured (`git remote`);
+  if either check fails, commit only and report why. (2) `git push -u`, then
+  `gh pr create --base <default-branch> --title <set-summary> --body <commit-list>` — pass `--title`
+  and `--body` explicitly so `gh` never opens `$EDITOR`. Return the PR URL.
 - Report the final `git log --oneline` of the new commits and the PR URL (or skip reason).
 
 The push and `gh` steps rely on the existing permission setup; `acceptEdits` matches the sibling
