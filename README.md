@@ -159,6 +159,7 @@ Skills I use daily for code work.
 - **[afk-issue-loop](./skills/engineering/afk-issue-loop/SKILL.md)** — Autonomously burn down a GitHub issue backlog into one PR per issue — claim, branch, implement, verify, open PR; never merges. Bundles a resumable headless runner and documents the `/loop` + cron orchestration paths.
 - **[bun-workspace-quality](./skills/engineering/bun-workspace-quality/SKILL.md)** — Code quality toolkit for Bun + Turborepo monorepos — Biome/ultracite lint, per-workspace typecheck, husky pre-commit/pre-push gates, GitHub Actions CI, typos, gitleaks, commitlint, Dependabot.
 - **[implement-plan-with-sonnet](./skills/engineering/implement-plan-with-sonnet/SKILL.md)** — Hand the current implementation plan to a Sonnet subagent in an isolated git worktree; it self-verifies the repo's gates, then you re-check the diff and merge.
+- **[commit-and-pr-with-sonnet](./skills/engineering/commit-and-pr-with-sonnet/SKILL.md)** — Hand a dirty working tree to a Sonnet subagent that splits it into atomic commits and, on a non-default branch, pushes and opens a PR.
 
 ### Productivity
 
