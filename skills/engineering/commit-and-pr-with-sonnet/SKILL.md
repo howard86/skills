@@ -24,7 +24,9 @@ it by concern, writes on-style messages, and (on a non-default branch) pushes an
 - **Tree must be dirty.** Run `git status`; if it's clean there is nothing to commit — no-op and report.
 - **Do NOT pass `run_in_background`.** The `Agent()` call is blocking, so the parent sits idle while
   the subagent runs. The subagent shares this same git index — a background run would race it.
-- Record the current branch and whether it is the remote default branch (`git symbolic-ref refs/remotes/origin/HEAD`).
+- Record the current branch and the remote default branch. Detect it with
+  `git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||'`; if the
+  command returns empty (fresh clone or origin/HEAD never set), fall back to testing for `main` or `master`.
 
 ## Launch the subagent
 
