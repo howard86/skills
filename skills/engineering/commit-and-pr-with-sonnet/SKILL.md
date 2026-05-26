@@ -50,7 +50,9 @@ reads the live diff itself rather than having it inlined. The brief tells it:
 - `git add` **specific files** — never blanket `git add -A`. Include untracked files only when they're
   clearly referenced by tracked diff hunks or live in the same source dirs; skip anything that looks
   like scratch, logs, `.env`, or credentials. If unsure, leave it untracked.
-- Let hooks run; never `--no-verify`. A failed hook means nothing was committed — fix the issue and run `git commit` again.
+- Let hooks run; never `--no-verify`. A failed hook means nothing was committed — fix the issue and run
+  `git commit` again. If the hook auto-modified files (e.g., a formatter), also `git add <modified-files>`
+  before retrying; the staged diff changed and the new state is what gets committed.
 - **Branch rule:** if `HEAD` is the remote default branch (main/master) → commit only, no push or PR.
   Otherwise: (1) verify `gh` is available (`gh --version`) and a remote is configured (`git remote`);
   if either check fails, commit only and report why. (2) `git push -u`, then
