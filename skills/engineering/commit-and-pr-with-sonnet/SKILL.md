@@ -1,13 +1,13 @@
 ---
 name: commit-and-pr-with-sonnet
-description: Hand an already-dirty working tree to a Sonnet subagent that splits the uncommitted changes into atomic commits with on-style messages and, on a non-default branch, pushes and opens a PR — then the parent reviews. Use when the work is already done and you want cheap commit hygiene — e.g. "split these changes into atomic commits with sonnet", "commit this with sonnet", "delegate the commits/PR to a cheaper model". Does NOT implement anything (the changes must already exist); for delegating implementation use implement-plan-with-sonnet instead.
+description: Hand an already-dirty working tree to a Sonnet subagent that splits the uncommitted changes into atomic commits with style-matched messages and, on a non-default branch, pushes and opens a PR — then the parent reviews. Use when the work is already done and you want cheap commit hygiene — e.g. "split these changes into atomic commits with sonnet", "commit this with sonnet", "delegate the commits/PR to a cheaper model". Does NOT implement anything (the changes must already exist); for delegating implementation use implement-plan-with-sonnet instead.
 ---
 
 # Commit and PR with Sonnet
 
 Opus did the work; now the uncommitted diff just needs carving into clean atomic commits — a
 mechanical, expensive job. Hand it to a cheaper Sonnet subagent that reads the live diff, groups
-it by concern, writes on-style messages, and (on a non-default branch) pushes and opens a PR.
+it by concern, writes style-matched messages, and (on a non-default branch) pushes and opens a PR.
 
 ## When to use
 
@@ -60,8 +60,8 @@ reads the live diff itself rather than having it inlined. The brief tells it:
   and `--body` explicitly so `gh` never opens `$EDITOR`. Return the PR URL.
 - Report the final `git log --oneline` of the new commits and the PR URL (or skip reason).
 
-The push and `gh` steps rely on the existing permission setup; `acceptEdits` matches the sibling
-`implement-plan-with-sonnet`, which runs git operations under that mode successfully. Do NOT use `bypassPermissions`.
+`acceptEdits` auto-accepts file-edit calls but does NOT automatically grant Bash permissions — if
+git/gh commands are blocked, add them to the project's `.claude/settings.json` allowlist. Do NOT use `bypassPermissions`.
 
 ## After the subagent returns
 
