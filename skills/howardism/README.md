@@ -21,8 +21,9 @@ Model- or user-reachable (rich trigger phrasing so the model can reach for them)
 - **[bun-workspace-quality](./bun-workspace-quality/SKILL.md)** — Code quality toolkit for Bun + Turborepo monorepos — Biome/ultracite lint, per-workspace typecheck, husky pre-commit/pre-push gates, GitHub Actions CI, typos, gitleaks, commitlint, Dependabot.
 - **[find-skills](./find-skills/SKILL.md)** — Discover and install skills from the open agent-skills ecosystem.
 - **[chat-history](./chat-history/SKILL.md)** — Search and replay past Claude Code transcripts and Codex rollouts from one bundled CLI.
-- **[implement-plan-with-sonnet](./implement-plan-with-sonnet/SKILL.md)** — Hand the current implementation plan to a Sonnet subagent in an isolated git worktree; it self-verifies the repo's gates, then you re-check the diff and merge.
-- **[commit-and-pr-with-sonnet](./commit-and-pr-with-sonnet/SKILL.md)** — Hand a dirty working tree to a Sonnet subagent that splits it into atomic commits and, on a non-default branch, pushes and opens a PR.
+- **[implement-with-subagent](./implement-with-subagent/SKILL.md)**: Delegate an approved plan using the running harness’s subagent reference, then verify and integrate the result.
+- **[commit-with-subagent](./commit-with-subagent/SKILL.md)**: Delegate scoped atomic commits; verify before any requested push or draft PR.
+- **[subagent-routing](./subagent-routing/SKILL.md)**: Choose the correct harness reference, supported model, and ownership contract before delegation.
 - **[rebase-babysit](./rebase-babysit/SKILL.md)** — Rebase a stale PR onto its base, resolve conflicts, force-push, then babysit reviews and CI through to merge-ready.
 - **[retro](./retro/SKILL.md)** — Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
 - **[perf-measurement](./perf-measurement/SKILL.md)** — Estimate and measure performance: back-of-envelope costing from a latency-numbers table, microbenchmarks, profiling.
