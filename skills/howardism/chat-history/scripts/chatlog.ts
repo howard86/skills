@@ -7,7 +7,8 @@
 //   bun chatlog.ts sessions [--source claude|codex|all] [--days N] [--project sub] [--limit N] [--include-agents]
 //   bun chatlog.ts selfcheck
 // search/prompts default --days 30, sessions defaults --days 7; --days 0 means unlimited.
-// --include-agents opts subagent transcripts (<parent-uuid>/subagents/agent-*.jsonl) back into prompts/sessions.
+// --include-agents opts subagent transcripts (Claude <parent-uuid>/subagents/agent-*.jsonl, Codex
+// rollouts whose session_meta names a parent_thread_id) back into prompts/sessions.
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 
@@ -138,6 +139,11 @@ const labelOf = (path: string) =>
 // briefs, not prompts the human typed — excluded from prompts/sessions unless opted back in.
 export const isSubagentTranscript = (path: string) => path.includes("/subagents/");
 
+// Harness-injected user turns: command wrappers, task notifications, teammate relays and
+// stop notices (Claude, all `<...>`), and the AGENTS.md block Codex prepends as a user message.
+export const isInjectedTurn = (text: string) =>
+  text.startsWith("<") || text.startsWith("# AGENTS.md instructions for");
+
 // --- search ----------------------------------------------------------------
 const isDir = (p: string) => stat(p).then((s) => s.isDirectory(), () => false);
 
@@ -205,6 +211,16 @@ export function codexCwd(firstLine: string): string {
   try {
     const obj = JSON.parse(firstLine);
     return obj?.type === "session_meta" ? (obj.payload?.cwd ?? "") : "";
+  } catch { return ""; }
+}
+
+// Codex spawns sub-agents as separate rollouts whose session_meta carries parent_thread_id:
+// like Claude's subagents/ transcripts they open with an agent-authored brief, not a typed
+// prompt. Returns "" for a root thread, a non-meta line, or unparseable input.
+export function codexParentThread(firstLine: string): string {
+  try {
+    const obj = JSON.parse(firstLine);
+    return obj?.type === "session_meta" ? (obj.payload?.parent_thread_id ?? "") : "";
   } catch { return ""; }
 }
 
@@ -290,8 +306,7 @@ async function dumpPrompts(days: number, project: string, includeAgents: boolean
       if (Bun.file(p).lastModified < cutoff) continue;
       for (const m of (await parseFile(p, /"type":"user"/)).filter((m) => m.role === "user")) {
         const text = m.text.trim();
-        // skip harness-injected turns: command wrappers, task notifications, teammate relays, stop notices
-        if (!text || text.startsWith("<")) continue;
+        if (!text || isInjectedTurn(text)) continue;
         if (text.startsWith("Another Claude session sent a message:") || /^\d+ background agents? (was|were) stopped/.test(text)) continue;
         rows.push({ ts: m.ts, project: proj, sid: sessionOf(p), text });
       }
@@ -320,7 +335,7 @@ async function firstUserPrompt(path: string): Promise<string> {
       try { obj = JSON.parse(line); } catch { continue; }
       const u = (codex ? codexMsgs(obj) : claudeMsgs(obj)).find((m) => m.role === "user");
       const text = u?.text.trim();
-      if (text && !text.startsWith("<")) { reader.cancel(); return text; }
+      if (text && !isInjectedTurn(text)) { reader.cancel(); return text; }
     }
     if (done) return "";
   }
@@ -354,11 +369,16 @@ async function sessions() {
     files = (await Promise.all(files.map(async (f) => ((await matchesProject(f, project)) ? f : null))))
       .filter((f): f is string => f !== null);
   }
-  const top = files
+  const sorted = files
     .map((f) => ({ f, mtime: Bun.file(f).lastModified }))
-    .sort((a, b) => b.mtime - a.mtime)
-    .slice(0, limit);
-  for (const { f, mtime } of top) {
+    .sort((a, b) => b.mtime - a.mtime);
+  let shown = 0;
+  for (const { f, mtime } of sorted) {
+    if (shown >= limit) break;
+    // Codex child threads are only detectable from the file's first line, so filter lazily
+    // here rather than reading every rollout in the window up front.
+    if (!includeAgents && f.includes("/.codex/") && codexParentThread(await readFirstLine(f))) continue;
+    shown++;
     const ts = new Date(mtime).toISOString().slice(0, 16).replace("T", " ");
     const prompt = oneLine(await firstUserPrompt(f)).slice(0, 100);
     console.log(`${ts}  ${labelOf(f)}  ${sessionOf(f)}  ${prompt}  ${f}`);
@@ -424,6 +444,9 @@ if (cmd === "selfcheck") {
 
   console.assert(isSubagentTranscript("/a/parent-uuid/subagents/agent-x.jsonl"), "isSubagentTranscript excludes by default");
   console.assert(!isSubagentTranscript("/a/parent-uuid/session.jsonl"), "isSubagentTranscript non-subagent path");
+  const child = JSON.stringify({ type: "session_meta", payload: { id: "c", parent_thread_id: "p", cwd: "/x" } });
+  console.assert(codexParentThread(child) === "p" && codexParentThread(meta) === "" && codexParentThread("nope") === "", "codexParentThread");
+  console.assert(isInjectedTurn("<command-name>/x</command-name>") && isInjectedTurn("# AGENTS.md instructions for /p\n\n<INSTRUCTIONS>") && !isInjectedTurn("fix the bug"), "isInjectedTurn");
 
   console.assert(findBadFlagValue(["--days", "abc"], { days: "num" }) !== null, "numeric flag rejects abc");
   console.assert(findBadFlagValue(["--days", "30"], { days: "num" }) === null, "numeric flag accepts 30");

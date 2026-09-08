@@ -64,7 +64,7 @@ grep -iE 'skill|retro' /tmp/prompts.txt | tail -50
 bun $S sessions [--source claude|codex|all] [--days N] [--project sub] [--limit N] [--include-agents]
 ```
 
-Newest-first, one line per session: mtime, label, session id, first user prompt (truncated ~100 chars), path. Defaults to `--days 7`, `--limit 20`, subagent transcripts excluded (`--include-agents` to include them). Use it instead of hand-rolling `ls -t ~/.claude/projects/*/*.jsonl | head` — e.g. to find a just-spawned subagent's transcript, then `show <id> --last` for its closing report.
+Newest-first, one line per session: mtime, label, session id, first user prompt (truncated ~100 chars), path. Defaults to `--days 7`, `--limit 20`, subagent transcripts excluded (Claude `subagents/` files and Codex rollouts spawned by a parent thread; `--include-agents` to include them). Codex rows skip the injected AGENTS.md block and show the first typed prompt. Use it instead of hand-rolling `ls -t ~/.claude/projects/*/*.jsonl | head` — e.g. to find a just-spawned subagent's transcript, then `show <id> --last` for its closing report.
 
 ## Typical loop
 
