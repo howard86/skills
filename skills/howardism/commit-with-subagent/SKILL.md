@@ -23,6 +23,11 @@ intended remote and base branch from remote metadata/configuration; do not guess
 between main/master or publish from detached HEAD. If publication needs a feature
 branch, use the repo's branch convention rather than publishing the default branch.
 
+A worker completed through Agent Bridge has execution authority only. Its task
+record, attempts, or permission posture do not add commit or publication
+authority. The named integrator still verifies the patch and follows the delivery
+authority in this skill.
+
 The committer works where the approved uncommitted changes exist. Give it exclusive
 ownership of that worktree's index and files for the handoff; the root and other
 writers wait or work elsewhere. If exclusivity cannot be established, prepare
