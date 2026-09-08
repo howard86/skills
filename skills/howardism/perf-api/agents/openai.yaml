@@ -1,0 +1,3 @@
+interface:
+  display_name: "Perf API"
+  short_description: "Shape interfaces for hot-path callers"

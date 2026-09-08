@@ -1,0 +1,3 @@
+interface:
+  display_name: "Perf Memory"
+  short_description: "Cut allocation and layout costs"

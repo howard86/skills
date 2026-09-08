@@ -45,6 +45,8 @@ The other idea it hands you is the **phase boundary**. A phase is a chunk of wor
 
 Two of those are routinely got wrong, which is why the router carries the order rather than the list. `/handoff` reads like the general bridge between windows and is not: portability is the whole of what it buys. `/compact` is the bottom of the tree rather than the first reach, because the four questions above it are each cheaper or more precise.
 
+For global Codex instruction refinement, `codex-refine-harness` reviews and diagnoses `AGENTS.md`, then applies authorized improvements to that file only. Global `CLAUDE.md` supplies read-only cross-reference material; broader Claude harness work belongs to `refine-harness`.
+
 ## Common questions
 
 **Isn't there just a list of the skills in the right order?**

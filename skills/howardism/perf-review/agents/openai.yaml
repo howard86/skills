@@ -1,0 +1,6 @@
+interface:
+  display_name: "Perf Review"
+  short_description: "Fan out perf angles and rank the findings"
+  default_prompt: "Use $perf-review to fan out the perf-* angles over this target and rank the findings."
+policy:
+  allow_implicit_invocation: false

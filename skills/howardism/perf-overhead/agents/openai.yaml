@@ -1,0 +1,3 @@
+interface:
+  display_name: "Perf Overhead"
+  short_description: "Strip incidental hot-path overhead"
