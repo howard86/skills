@@ -1,0 +1,3 @@
+interface:
+  display_name: "Chat History"
+  short_description: "Search past Claude Code and Codex transcripts"
