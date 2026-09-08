@@ -1,0 +1,5 @@
+interface:
+  display_name: "Refine Skill"
+  short_description: "Test a skill against the harness before editing it"
+policy:
+  allow_implicit_invocation: false

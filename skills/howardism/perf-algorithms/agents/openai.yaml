@@ -1,0 +1,3 @@
+interface:
+  display_name: "Perf Algorithms"
+  short_description: "Find algorithmic wins in a hot path"

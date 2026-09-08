@@ -46,6 +46,8 @@ The skill's other key idea is the **phase boundary**. A phase is a chunk of work
 
 People often get two of these wrong, which is why the router gives the order and not only the list. `/handoff` looks like the general way to move between context windows, but it is not. All it gives you is portability. `/compact` is the last option in the tree, not the first, because each of the four options above it is cheaper or more precise.
 
+For global Codex instruction refinement, `codex-refine-harness` reviews and diagnoses `AGENTS.md`, then applies authorized improvements to that file only. Global `CLAUDE.md` supplies read-only cross-reference material; broader Claude harness work belongs to `refine-harness`.
+
 ## Common questions
 
 **Isn't there just a list of the skills in the right order?**

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex Refine Harness"
+  short_description: "Refine global Codex instructions with evidence"
+  default_prompt: "Use $codex-refine-harness to review global Codex AGENTS.md against recent behavior and global CLAUDE.md as a read-only reference."
