@@ -15,6 +15,8 @@ DEST="$HOME/.claude/agents"
 mkdir -p "$DEST"
 
 for src in "$REPO"/agents/*.md; do
+  # An empty agents directory has no definitions to link.
+  [ -f "$src" ] || continue
   name="$(basename "$src")"
   target="$DEST/$name"
 

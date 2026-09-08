@@ -64,9 +64,5 @@
     "./skills/productivity/writing-for-agents",
     "./skills/howardism/codex-fewer-permission-prompts",
     "./skills/howardism/find-skills"
-  ],
-  "agents": [
-    "./agents/sonnet-implementer.md",
-    "./agents/sonnet-committer.md"
   ]
 }
