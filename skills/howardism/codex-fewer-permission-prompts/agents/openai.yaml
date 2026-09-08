@@ -1,0 +1,7 @@
+interface:
+  display_name: "Codex Fewer Permission Prompts"
+  short_description: "Add narrow rules for repeated read-only approvals"
+  default_prompt: "Use $codex-fewer-permission-prompts to find safe read-only approval rules from recent Codex transcripts."
+
+policy:
+  allow_implicit_invocation: false

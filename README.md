@@ -229,3 +229,39 @@ General workflow tools, not code-specific.
 
 - **[grilling](./skills/productivity/grilling/SKILL.md)**: Interview the user relentlessly about a plan, decision, or idea until every branch of the design tree is resolved. The reusable interview primitive behind `grill-me`, `grill-with-docs`, `triage`, `wayfinder` and `improve-codebase-architecture`.
 - **[writing-for-agents](./skills/productivity/writing-for-agents/SKILL.md)**: Writing documents for agents: skills, AGENTS.md/CLAUDE.md, and any doc an agent reaches by a pointer.
+
+### Howardism
+
+Skills I wrote myself, with no counterpart in the upstream fork.
+
+**User-invoked**
+
+- **[refine-skill](./skills/howardism/refine-skill/SKILL.md)**: Refine an existing skill by testing it against the live harness and its usage history before editing any prose.
+- **[refine-harness](./skills/howardism/refine-harness/SKILL.md)**: Prune, relocate, and sharpen the always-on harness config (global CLAUDE.md, rules-engine rules, hooks, auto-memory, skill listing, permissions, mirrors) against Anthropic's guidance and the last 30 days of evidence.
+- **[blindspot](./skills/howardism/blindspot/SKILL.md)**: Diagnosis-only pass over a stated goal that surfaces the unknown unknowns, ranked by leverage, plus sharper follow-up prompts. Never edits.
+- **[perf-review](./skills/howardism/perf-review/SKILL.md)**: Fan out the perf-* angle skills as parallel subagents over a target and merge their findings into ranked, measurable improvement suggestions.
+- **[codex-fewer-permission-prompts](./skills/howardism/codex-fewer-permission-prompts/SKILL.md)**: Mine recent Codex transcripts for repeated read-only approvals and add narrow prefix rules for them.
+
+**Model-invoked**
+
+- **[codex-refine-harness](./skills/howardism/codex-refine-harness/SKILL.md)**: Review and diagnose global Codex AGENTS.md, then apply authorized improvements; global CLAUDE.md is a read-only reference.
+- **[afk-issue-loop](./skills/howardism/afk-issue-loop/SKILL.md)**: Autonomously burn down a GitHub issue backlog into one PR per issue: claim, branch, implement, verify, open PR; never merges. Bundles a resumable headless runner and documents the `/loop` + cron orchestration paths.
+- **[bun-workspace-quality](./skills/howardism/bun-workspace-quality/SKILL.md)**: Code quality toolkit for Bun + Turborepo monorepos: Biome/ultracite lint, per-workspace typecheck, husky pre-commit/pre-push gates, GitHub Actions CI, typos, gitleaks, commitlint, Dependabot.
+- **[find-skills](./skills/howardism/find-skills/SKILL.md)**: Discover and install skills from the open agent-skills ecosystem.
+- **[chat-history](./skills/howardism/chat-history/SKILL.md)**: Search and replay past Claude Code transcripts and Codex rollouts from one bundled CLI.
+- **[implement-plan-with-sonnet](./skills/howardism/implement-plan-with-sonnet/SKILL.md)**: Hand the current implementation plan to a Sonnet subagent in an isolated git worktree; it self-verifies the repo's gates, then you re-check the diff and merge.
+- **[commit-and-pr-with-sonnet](./skills/howardism/commit-and-pr-with-sonnet/SKILL.md)**: Hand a dirty working tree to a Sonnet subagent that splits it into atomic commits and, on a non-default branch, pushes and opens a PR.
+- **[rebase-babysit](./skills/howardism/rebase-babysit/SKILL.md)**: Rebase a stale PR onto its base, resolve conflicts, force-push, then babysit reviews and CI through to merge-ready.
+- **[retro](./skills/howardism/retro/SKILL.md)**: Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
+- **[perf-measurement](./skills/howardism/perf-measurement/SKILL.md)**: Estimate and measure performance: back-of-envelope costing from a latency-numbers table, microbenchmarks, profiling.
+- **[perf-algorithms](./skills/howardism/perf-algorithms/SKILL.md)**: Find algorithmic wins in a hot path: complexity reduction, fast paths, precomputing, deferring, caching.
+- **[perf-memory](./skills/howardism/perf-memory/SKILL.md)**: Cut allocation and memory-representation costs: pre-sizing, copy avoidance, object reuse, compact layouts, indices over pointers.
+- **[perf-api](./skills/howardism/perf-api/SKILL.md)**: Performance-aware interface shape: bulk operations, view parameters, thread-compatible defaults, hoisted per-call setup.
+- **[perf-overhead](./skills/howardism/perf-overhead/SKILL.md)**: Strip incidental hot-path overhead: logging, stats collection, and indirection the optimizer can't see through.
+
+### Agents
+
+Subagent definitions shipped with the plugin (auto-discovered from `agents/`). Both are pinned to Sonnet 5 at `effort: medium`: cheap, focused build steps the Opus session delegates to, referenced as `mattpocock-skills:<name>`.
+
+- **[sonnet-implementer](./agents/sonnet-implementer.md)**: Implements a finished plan mechanically in an isolated worktree, self-verifies the gates, and commits a reviewable diff. Used by [implement-plan-with-sonnet](./skills/howardism/implement-plan-with-sonnet/SKILL.md).
+- **[sonnet-committer](./agents/sonnet-committer.md)**: Splits a dirty working tree into atomic commits and, off the default branch, pushes and opens a PR. Used by [commit-and-pr-with-sonnet](./skills/howardism/commit-and-pr-with-sonnet/SKILL.md).

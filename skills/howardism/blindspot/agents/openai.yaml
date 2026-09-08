@@ -1,0 +1,6 @@
+interface:
+  display_name: "Blindspot Pass"
+  short_description: "Surface the unknown unknowns for a stated goal"
+  default_prompt: "Use $blindspot to find what I'm not thinking to ask about this goal."
+policy:
+  allow_implicit_invocation: false

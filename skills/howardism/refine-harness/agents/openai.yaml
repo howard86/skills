@@ -1,0 +1,5 @@
+interface:
+  display_name: "Refine Harness"
+  short_description: "Prune and relocate the always-on config against evidence"
+policy:
+  allow_implicit_invocation: false
