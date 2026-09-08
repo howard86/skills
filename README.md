@@ -249,8 +249,9 @@ Skills I wrote myself, with no counterpart in the upstream fork.
 - **[bun-workspace-quality](./skills/howardism/bun-workspace-quality/SKILL.md)**: Code quality toolkit for Bun + Turborepo monorepos: Biome/ultracite lint, per-workspace typecheck, husky pre-commit/pre-push gates, GitHub Actions CI, typos, gitleaks, commitlint, Dependabot.
 - **[find-skills](./skills/howardism/find-skills/SKILL.md)**: Discover and install skills from the open agent-skills ecosystem.
 - **[chat-history](./skills/howardism/chat-history/SKILL.md)**: Search and replay past Claude Code transcripts and Codex rollouts from one bundled CLI.
-- **[implement-plan-with-sonnet](./skills/howardism/implement-plan-with-sonnet/SKILL.md)**: Hand the current implementation plan to a Sonnet subagent in an isolated git worktree; it self-verifies the repo's gates, then you re-check the diff and merge.
-- **[commit-and-pr-with-sonnet](./skills/howardism/commit-and-pr-with-sonnet/SKILL.md)**: Hand a dirty working tree to a Sonnet subagent that splits it into atomic commits and, on a non-default branch, pushes and opens a PR.
+- **[implement-with-subagent](./skills/howardism/implement-with-subagent/SKILL.md)**: Delegate an approved plan using the running harness’s subagent reference, then verify and integrate the result.
+- **[commit-with-subagent](./skills/howardism/commit-with-subagent/SKILL.md)**: Delegate scoped atomic commits; verify before any requested push or draft PR.
+- **[subagent-routing](./skills/howardism/subagent-routing/SKILL.md)**: Choose the correct harness reference, supported model, and ownership contract before delegation.
 - **[rebase-babysit](./skills/howardism/rebase-babysit/SKILL.md)**: Rebase a stale PR onto its base, resolve conflicts, force-push, then babysit reviews and CI through to merge-ready.
 - **[retro](./skills/howardism/retro/SKILL.md)**: Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
 - **[perf-measurement](./skills/howardism/perf-measurement/SKILL.md)**: Estimate and measure performance: back-of-envelope costing from a latency-numbers table, microbenchmarks, profiling.
@@ -258,10 +259,3 @@ Skills I wrote myself, with no counterpart in the upstream fork.
 - **[perf-memory](./skills/howardism/perf-memory/SKILL.md)**: Cut allocation and memory-representation costs: pre-sizing, copy avoidance, object reuse, compact layouts, indices over pointers.
 - **[perf-api](./skills/howardism/perf-api/SKILL.md)**: Performance-aware interface shape: bulk operations, view parameters, thread-compatible defaults, hoisted per-call setup.
 - **[perf-overhead](./skills/howardism/perf-overhead/SKILL.md)**: Strip incidental hot-path overhead: logging, stats collection, and indirection the optimizer can't see through.
-
-### Agents
-
-Subagent definitions shipped with the plugin (auto-discovered from `agents/`). Both are pinned to Sonnet 5 at `effort: medium`: cheap, focused build steps the Opus session delegates to, referenced as `mattpocock-skills:<name>`.
-
-- **[sonnet-implementer](./agents/sonnet-implementer.md)**: Implements a finished plan mechanically in an isolated worktree, self-verifies the gates, and commits a reviewable diff. Used by [implement-plan-with-sonnet](./skills/howardism/implement-plan-with-sonnet/SKILL.md).
-- **[sonnet-committer](./agents/sonnet-committer.md)**: Splits a dirty working tree into atomic commits and, off the default branch, pushes and opens a PR. Used by [commit-and-pr-with-sonnet](./skills/howardism/commit-and-pr-with-sonnet/SKILL.md).

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Commit with Subagent"
+  short_description: "Delegate scoped commits and requested draft PRs"
