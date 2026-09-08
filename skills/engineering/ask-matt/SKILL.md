@@ -32,7 +32,8 @@ For completed changes needing atomic commits, recommend **`/commit-with-subagent
 push or draft PR delivery follows the user's request. Both use **`/subagent-routing`**
 to choose the running harness's reference and supported model. Use that reference
 on its own for delegation/model-routing questions across Claude Code, Codex,
-Antigravity, Cursor CLI, and Grok Build. These replace the former Sonnet workflows.
+Antigravity, Cursor CLI, and Grok Build, including an authorized Agent Bridge
+route when cross-harness work is requested. Native delegation remains the default.
 
 ### Context hygiene
 

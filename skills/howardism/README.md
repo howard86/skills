@@ -23,7 +23,7 @@ Model- or user-reachable (rich trigger phrasing so the model can reach for them)
 - **[chat-history](./chat-history/SKILL.md)** — Search and replay past Claude Code transcripts and Codex rollouts from one bundled CLI.
 - **[implement-with-subagent](./implement-with-subagent/SKILL.md)**: Delegate an approved plan using the running harness’s subagent reference, then verify and integrate the result.
 - **[commit-with-subagent](./commit-with-subagent/SKILL.md)**: Delegate scoped atomic commits; verify before any requested push or draft PR.
-- **[subagent-routing](./subagent-routing/SKILL.md)**: Choose the correct harness reference, supported model, and ownership contract before delegation.
+- **[subagent-routing](./subagent-routing/SKILL.md)**: Resolve native delegation or an authorized Agent Bridge route, with supported models and clear ownership.
 - **[rebase-babysit](./rebase-babysit/SKILL.md)** — Rebase a stale PR onto its base, resolve conflicts, force-push, then babysit reviews and CI through to merge-ready.
 - **[retro](./retro/SKILL.md)** — Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
 - **[perf-measurement](./perf-measurement/SKILL.md)** — Estimate and measure performance: back-of-envelope costing from a latency-numbers table, microbenchmarks, profiling.
