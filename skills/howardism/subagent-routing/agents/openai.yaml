@@ -1,0 +1,3 @@
+interface:
+  display_name: "Subagent Routing"
+  short_description: "Choose models and delegation for the active harness"
