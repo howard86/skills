@@ -147,7 +147,7 @@ export const isInjectedTurn = (text: string) =>
 // --- search ----------------------------------------------------------------
 const isDir = (p: string) => stat(p).then((s) => s.isDirectory(), () => false);
 
-// Narrow what rg has to walk: the whole corpus is ~19 GB, and a cold scan of it dwarfs
+// Narrow what rg has to walk: the whole corpus runs to tens of GB, and a cold scan of it dwarfs
 // every other cost in this script. Falls back to the bare dir whenever pruning can't
 // be done safely — the mtime filter below still enforces --days either way.
 export async function rgRoots(dir: string, days: number, project: string): Promise<string[]> {
