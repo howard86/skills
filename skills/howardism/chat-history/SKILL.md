@@ -76,7 +76,7 @@ Know it's recent but don't have a query? `sessions` lists it newest-first instea
 
 ## Notes
 
-- Requires `rg` (used to prefilter ~19 GB of transcripts — 3.3 GB Claude, 16 GB Codex). `--days 0` runs ~1–2.3s warm and much longer cold, which is why `--days` defaults to 30.
+- Requires `rg`, which prefilters a corpus of tens of GB (mostly Codex). `--days 0` takes several seconds warm and far longer cold, which is why `--days` defaults to 30.
 - A query containing `"` or `\` disables the per-line parse prefilter (JSON escaping would cause misses); it still works, just slower.
 - Codex `event_msg` records are skipped — they duplicate `response_item`.
 - Codex sessions include large `developer`-role system prompts; they match often and rarely matter.
