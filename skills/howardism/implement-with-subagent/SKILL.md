@@ -40,6 +40,17 @@ partial result. Preserve its worktree/patch until the root has inspected it. If
 the runtime tears down worktrees, require recoverable commits or an exported patch
 before return. Checkpoint commits are local recovery artifacts, not publication.
 
+## Authorized bridge route
+
+When `/subagent-routing` selects an authorized Agent Bridge route, retain the
+immutable assignment and returned task id with the plan. Record every attempt's
+effective target, model, effort, outcome, changed paths, validation, and
+reconciliation status. Treat `AgentUsage` as usage provenance, not a completion
+signal: missing capacity or consumption remains unknown. A bridge worker's
+permission does not authorize the root to publish its work. One integrator still
+reviews and accepts the result, then follows separate user authorization for any
+commit, push, or pull request.
+
 ## Verify and integrate
 
 Read the result and compare the returned artifact against the recorded starting
