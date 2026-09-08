@@ -36,6 +36,11 @@ Copies arrive from third-party installers (`bunx github.com/vercel-labs/skills` 
 
 No em-dashes anywhere in this repo's prose (`SKILL.md` files, docs, `README.md`, `CHANGELOG.md`, ADRs, changesets, code comments). Where a sentence reaches for one, rewrite it instead with a comma, colon, period, parentheses, or a conjunction, whichever the sentence actually wants; never do a blind character substitution.
 
+Before delegating work, use `/subagent-routing` to identify the running harness and
+read its subagent reference. Model choice and imported instruction paths do not
+identify the harness. The canonical entrypoint is
+[Subagent Routing](./skills/howardism/subagent-routing/SKILL.md).
+
 ## Agent skills
 
 ### Triage labels

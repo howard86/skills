@@ -31,6 +31,15 @@ The route most work travels. You have an idea and want it built.
 
 4. **`/retro`** closes the loop. After a build, and especially one that went sideways, it looks back over the session and suggests changes to the agent's **environment**, not the code: navigation pointers, automated checks, the coding standards `/code-review` enforces, steering files, tooling. Mechanical mistakes become deterministic checks; judgement calls become coding standards. The next build then starts from a better environment.
 
+### Delegated execution
+
+For an approved plan handed to a worker, recommend **`/implement-with-subagent`**.
+For completed changes needing atomic commits, recommend **`/commit-with-subagent`**;
+push or draft PR delivery follows the user's request. Both use **`/subagent-routing`**
+to choose the running harness's reference and supported model. Use that reference
+on its own for delegation/model-routing questions across Claude Code, Codex,
+Antigravity, Cursor CLI, and Grok Build. These replace the former Sonnet workflows.
+
 ### Context hygiene
 
 Keep steps 1–3 in **one unbroken context window** (don't compact or clear until after `/to-tickets`) so the grilling, spec, and tickets all build on the same thinking. Each `/implement` then starts fresh, working from the ticket. Run `/retro` in the session it's looking back on, before you clear; after clearing, point it at that session's log instead.
