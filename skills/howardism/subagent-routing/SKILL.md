@@ -7,6 +7,8 @@ description: Resolve the running harness, supported model and reasoning settings
 
 Read this entrypoint before spawning a subagent. It is the shared subagent
 reference; read only the harness branch that applies, then the common contract.
+For an explicitly authorized Agent Bridge route, also read
+[the bridge reference](references/agent-bridge.md).
 
 ## Identify the running harness
 
@@ -28,6 +30,15 @@ inspect runtime metadata/help without starting another session; ask for the
 harness only if that leaves the route unresolved. If native delegation is absent,
 report that limitation and do useful root work within the requested scope. An
 explicit subagent requirement remains incomplete until a supported worker runs.
+
+## Choose the execution path
+
+Prefer native delegation for work within the running harness. When the request
+or an existing operator policy authorizes cross-harness work, discover the
+installed bridge's live tools and read [the bridge reference](references/agent-bridge.md).
+Keep the current harness's caller identity separate from the configured worker.
+Tool availability establishes capability; the assignment and operator policy
+establish authority. Preserve both through selection and retries.
 
 ## Resolve the assignment
 

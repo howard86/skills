@@ -29,6 +29,12 @@ runtime's supported context mechanism; include critical scope and constraints ev
 when history is inherited. Independent reviewers receive the requirements and
 artifacts, without being coached toward the author's conclusion.
 
+For an authorized bridge assignment, follow [the bridge contract](agent-bridge.md).
+Record the caller harness separately from the worker target, retain the complete
+assignment, and save the returned task id. Include attempt/session ids, effective
+model/effort, usage provenance and missing fields, changed paths, actual validation,
+and reconciliation status in the result. The root remains the single integrator.
+
 ## Ownership and evidence
 
 Parallelize independent reads first; integrate through one writer where practical.
