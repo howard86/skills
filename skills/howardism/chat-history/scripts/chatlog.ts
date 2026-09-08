@@ -18,7 +18,7 @@ const CODEX_DIR = `${HOME}/.codex/sessions`;
 
 const argv = process.argv.slice(2);
 
-// --- flag validation (pure — selfcheck exercises these without spawning or exiting) ---
+// --- flag validation (pure: selfcheck exercises these without spawning or exiting) ---
 type FlagSpec = Record<string, "bool" | "num" | "str">;
 const CMD_FLAGS: Record<string, FlagSpec> = {
   search: { source: "str", days: "num", project: "str", files: "num", hits: "num", tools: "bool", "paths-only": "bool" },
@@ -108,7 +108,7 @@ export function codexMsgs(obj: any): Msg[] {
 
 const isTool = (m: Msg) => m.role.startsWith("⚙") || m.role.startsWith("↳") || m.role.startsWith("·");
 
-// A raw JSONL line that can't contain the query needn't be parsed — but only when the
+// A raw JSONL line that can't contain the query needn't be parsed, but only when the
 // query survives JSON escaping (a `"` or `\` in the pattern would miss escaped text).
 export const canPrefilter = (query: string) => !/["\\]/.test(query);
 
@@ -136,7 +136,7 @@ const labelOf = (path: string) =>
     : `claude ${path.split("/projects/")[1]?.split("/")[0] ?? ""}`;
 
 // Subagent transcripts (<parent-uuid>/subagents/agent-*.jsonl) are agent-authored spawn
-// briefs, not prompts the human typed — excluded from prompts/sessions unless opted back in.
+// briefs, not prompts the human typed: excluded from prompts/sessions unless opted back in.
 export const isSubagentTranscript = (path: string) => path.includes("/subagents/");
 
 // Harness-injected user turns: command wrappers, task notifications, teammate relays and
@@ -149,7 +149,7 @@ const isDir = (p: string) => stat(p).then((s) => s.isDirectory(), () => false);
 
 // Narrow what rg has to walk: the whole corpus runs to tens of GB, and a cold scan of it dwarfs
 // every other cost in this script. Falls back to the bare dir whenever pruning can't
-// be done safely — the mtime filter below still enforces --days either way.
+// be done safely: the mtime filter below still enforces --days either way.
 export async function rgRoots(dir: string, days: number, project: string): Promise<string[]> {
   const cutoff = days ? Date.now() - days * 86_400_000 : 0;
   if (dir === CODEX_DIR) {
@@ -179,7 +179,7 @@ export async function rgRoots(dir: string, days: number, project: string): Promi
   return files;
 }
 
-// Splits a path list into rg-argv-sized batches (~500 paths each — more than that risks
+// Splits a path list into rg-argv-sized batches (~500 paths each, since more than that risks
 // hitting argv limits). A short list stays one batch, so a single-directory root list
 // stays one rg spawn.
 export function chunkPaths(paths: string[], size = 500): string[][] {
@@ -192,20 +192,20 @@ async function spawnRg(query: string, roots: string[]): Promise<string[]> {
   // --hidden/--no-ignore: both corpora live under dot-directories rg skips by default
   let p: ReturnType<typeof Bun.spawn>;
   try { p = Bun.spawn(["rg", "-l", "-i", "--hidden", "--no-ignore", "-e", query, "--glob", "*.jsonl", ...roots], { stderr: "ignore" }); }
-  catch { console.error("rg not found — install ripgrep (brew install ripgrep)"); process.exit(1); }
+  catch { console.error("rg not found: install ripgrep (brew install ripgrep)"); process.exit(1); }
   const out = await new Response(p.stdout).text();
   await p.exited;
   return out.split("\n").filter(Boolean);
 }
 
 async function rgFiles(query: string, roots: string[]): Promise<string[]> {
-  if (!roots.length) return []; // never spawn rg with no paths — it would search cwd
+  if (!roots.length) return []; // never spawn rg with no paths: it would search cwd
   const results = await Promise.all(chunkPaths(roots).map((batch) => spawnRg(query, batch)));
   return [...new Set(results.flat())];
 }
 
 // Codex rollouts carry no project name in their path (date-based sessions/YYYY/MM/DD),
-// unlike Claude's <project-slug>/<uuid>.jsonl layout — read the first line's recorded cwd
+// unlike Claude's <project-slug>/<uuid>.jsonl layout, so read the first line's recorded cwd
 // instead. Returns "" when the line isn't session_meta, doesn't parse, or has no cwd.
 export function codexCwd(firstLine: string): string {
   try {
@@ -286,13 +286,13 @@ async function searchTranscripts(query: string, dir: string, re: RegExp): Promis
       out.push(`   [${m.role} ${m.ts.slice(0, 16)}] …${snippet}…`);
     }
   }
-  if (toolOnly) out.push(`   (${toolOnly} sessions matched only in tool calls/output — add --tools)`);
-  if (capped) out.push(`   (stopped after examining ${maxExamine} files — raise --files if you need more)`);
-  else if (files.length > examined) out.push(`   (+${files.length - examined} older matching sessions — raise --files)`);
+  if (toolOnly) out.push(`   (${toolOnly} sessions matched only in tool calls/output: add --tools)`);
+  if (capped) out.push(`   (stopped after examining ${maxExamine} files: raise --files if you need more)`);
+  else if (files.length > examined) out.push(`   (+${files.length - examined} older matching sessions: raise --files)`);
   return out.join("\n");
 }
 
-// --- prompts dump (bulk, no query — feeds the retro skill) -----------------
+// --- prompts dump (bulk, no query: feeds the retro skill) -----------------
 // Reads user turns straight from the Claude transcripts, mtime-pruned by --days.
 async function dumpPrompts(days: number, project: string, includeAgents: boolean) {
   const cutoff = days ? Date.now() - days * 86_400_000 : 0;
@@ -317,7 +317,7 @@ async function dumpPrompts(days: number, project: string, includeAgents: boolean
 }
 
 // --- sessions (newest-first listing, no query) ------------------------------
-// Streams a file only until its first user message is found — this command needs a
+// Streams a file only until its first user message is found, since this command needs a
 // preview line per session, not a full transcript parse.
 async function firstUserPrompt(path: string): Promise<string> {
   const codex = path.includes("/.codex/");
@@ -477,7 +477,7 @@ if (cmd === "selfcheck") {
   try { re = new RegExp(query, "i"); } catch { re = new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"); }
   const source = flag("source", "all");
   const want = (s: string) => source === "all" || source === s;
-  // rg spawns dominate the runtime and don't contend — run the sources together, print in order
+  // rg spawns dominate the runtime and don't contend, so run the sources together and print in order
   const blocks = await Promise.all([
     want("claude") ? searchTranscripts(query, CLAUDE_DIR, re) : "",
     want("codex") ? searchTranscripts(query, CODEX_DIR, re) : "",
