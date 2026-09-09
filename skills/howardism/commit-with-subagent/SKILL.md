@@ -5,8 +5,8 @@ description: Delegate atomic commits for approved existing changes, verify the r
 
 # Commit with Subagent
 
-Use `/subagent-routing` first. Follow its running-harness reference and common
-assignment/result contract. Select an implementation-capable worker for commit
+Call the Skill tool with `subagent-routing` first. Follow its running-harness
+reference and common assignment/result contract. Select an implementation-capable worker for commit
 boundary judgment; a scout is suitable only for already-settled mechanical groups.
 
 ## Scope the handoff
