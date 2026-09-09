@@ -40,7 +40,9 @@ Copies arrive from third-party installers (`bunx github.com/vercel-labs/skills` 
 
 No em-dashes anywhere in this repo's prose (`SKILL.md` files, docs, `README.md`, `CHANGELOG.md`, ADRs, changesets, code comments). Where a sentence reaches for one, rewrite it instead with a comma, colon, period, parentheses, or a conjunction, whichever the sentence actually wants; never do a blind character substitution.
 
-Before delegating work, use `/subagent-routing` to identify the running harness and
-read its subagent reference. Model choice and imported instruction paths do not
-identify the harness. The canonical entrypoint is
-[Subagent Routing](./skills/howardism/subagent-routing/SKILL.md).
+This repo owns the delegation entrypoint, [Subagent Routing](./skills/howardism/subagent-routing/SKILL.md),
+along with [implement-with-subagent](./skills/howardism/implement-with-subagent/SKILL.md) and
+[commit-with-subagent](./skills/howardism/commit-with-subagent/SKILL.md). When to reach for them is
+stated once, in the global `CLAUDE.md` `## Agent` bullet and in the rules-engine hooks, and that
+single statement stays the source of truth. Edit those three skills together: the two workflow skills
+open by loading the router, and the router's description names them.

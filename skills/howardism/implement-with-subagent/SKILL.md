@@ -5,8 +5,9 @@ description: Delegate an approved implementation plan to a bounded worker using 
 
 # Implement with Subagent
 
-Use `/subagent-routing` first. Follow its running-harness reference and common
-assignment/result contract; this skill supplies the implementation workflow.
+Call the Skill tool with `subagent-routing` first. Follow its running-harness
+reference and common assignment/result contract; this skill supplies the
+implementation workflow.
 
 ## Establish the plan and destination
 
@@ -42,7 +43,7 @@ before return. Checkpoint commits are local recovery artifacts, not publication.
 
 ## Authorized bridge route
 
-When `/subagent-routing` selects an authorized Agent Bridge route, retain the
+When `subagent-routing` selects an authorized Agent Bridge route, retain the
 immutable assignment and returned task id with the plan. Record every attempt's
 effective target, model, effort, outcome, changed paths, validation, and
 reconciliation status. Treat `AgentUsage` as usage provenance, not a completion
@@ -61,6 +62,7 @@ back to the owning worker. Never label omitted or failed required gates green.
 Integrate only into the authorized destination after checking its HEAD and dirty
 state again. Inspect and validate the final combined snapshot; re-run checks when
 integration or other changes invalidate earlier evidence. Preserve unrelated work.
-For requested commits/publication, use `/commit-with-subagent` after verification.
+For requested commits/publication, call the Skill tool with `commit-with-subagent`
+after verification.
 Return changed files, validation, remaining risks, and the patch/worktree/commit or
 draft PR location. Stop at the user's delivery target.
