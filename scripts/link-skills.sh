@@ -19,16 +19,22 @@ DESTS=("$HOME/.claude/skills" "$HOME/.agents/skills")
 # is retired, and `misc/` is kept around but rarely used and not promoted (see
 # each bucket's own README): neither belongs in a daily-driver skill
 # directory, so both are skipped here, same as everywhere else non-promoted
-# skills are kept out. `in-progress/` IS still linked: it's public on purpose,
-# feedback wanted, and this local install is exactly where that feedback loop
-# runs.
+# skills are kept out.
+#
+# LOCAL DEVIATION from upstream: `in-progress/` is skipped too. Upstream links
+# it so the feedback loop runs locally, but every one of its skills is
+# `disable-model-invocation: true` and none has been invoked once in the whole
+# transcript corpus, so the loop was never running. It also collides:
+# `in-progress/retro` and `howardism/retro` are different skills sharing a
+# name, and which one lands in the flat destination directory is decided by
+# `find` ordering alone. Skipping the bucket settles that.
 names=()
 srcs=()
 while IFS= read -r -d '' skill_md; do
   src="$(dirname "$skill_md")"
   names+=("$(basename "$src")")
   srcs+=("$src")
-done < <(find "$REPO/skills" -name SKILL.md -not -path '*/node_modules/*' -not -path '*/deprecated/*' -not -path '*/misc/*' -print0)
+done < <(find "$REPO/skills" -name SKILL.md -not -path '*/node_modules/*' -not -path '*/deprecated/*' -not -path '*/misc/*' -not -path '*/in-progress/*' -print0)
 
 for DEST in "${DESTS[@]}"; do
   # If $DEST is a symlink that resolves into this repo, we'd end up writing the
