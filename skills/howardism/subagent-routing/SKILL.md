@@ -1,6 +1,6 @@
 ---
 name: subagent-routing
-description: Read before spawning any subagent: resolves the running harness, its supported models and effort settings, and the ownership contract. Required by implement-with-subagent and commit-with-subagent. Use when delegating implementation, commits, research, or independent review in Claude Code, Codex, Antigravity, Cursor CLI, or Grok Build.
+description: 'Read before spawning any subagent: resolves the running harness, its supported models and effort settings, and the ownership contract. Required by implement-with-subagent and commit-with-subagent. Use when delegating implementation, commits, research, or independent review in Claude Code, Codex, Antigravity, Cursor CLI, or Grok Build.'
 ---
 
 # Subagent Routing
