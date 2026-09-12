@@ -1,7 +1,7 @@
 ---
 name: chat-history
 allowed-tools: Bash(bun ${CLAUDE_SKILL_DIR}/scripts/chatlog.ts *)
-description: Search past Claude Code transcripts and Codex rollouts from one CLI. Use when the answer likely lives in earlier work: "did we do this before", "what did I decide about X", "how did we fix Y last time", "find that session where…", "what was the error we hit", digging up a prior prompt, or rebuilding context from a session outside this window.
+description: 'Search past Claude Code transcripts and Codex rollouts from one CLI. Use when the answer likely lives in earlier work: "did we do this before", "what did I decide about X", "how did we fix Y last time", "find that session where…", "what was the error we hit", digging up a prior prompt, or rebuilding context from a session outside this window.'
 ---
 
 # chat-history
