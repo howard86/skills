@@ -51,8 +51,16 @@ or report the resolution as unknown.
 
 Parallelize independent reads first; integrate through one writer where practical.
 Test runs that modify snapshots, generated files, fixtures, or databases count as
-writes. Use exclusive paths or separate worktrees for writers. A reviewer reports
-findings without editing the implementation it reviews.
+writes. Use exclusive paths or separate worktrees for writers. Configure a reviewer
+read-only through its harness's enforcing field:
+
+| Harness | Read-only configuration |
+| --- | --- |
+| Claude Code | `permissionMode: plan`, or `disallowedTools: Write, Edit` |
+| Codex | `sandbox_mode` in the agent's TOML |
+| Antigravity | `commandExecutionPolicy: off` plus an explicit `tools` whitelist |
+| Cursor | `readonly: true` |
+| Grok Build | `default_capability_mode = "read-only"` on the role, or the `read-only` capability mode |
 
 The root waits for every result needed by the next decision, verifies consequential
 claims against source and observed output, resolves disagreements with evidence,
