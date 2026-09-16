@@ -26,6 +26,8 @@ Model- or user-reachable (rich trigger phrasing so the model can reach for them)
 - **[subagent-routing](./subagent-routing/SKILL.md)**: Resolve native delegation or an authorized Agent Bridge route, with supported models and clear ownership.
 - **[rebase-babysit](./rebase-babysit/SKILL.md)** — Rebase a stale PR onto its base, resolve conflicts, force-push, then babysit reviews and CI through to merge-ready.
 - **[retro](./retro/SKILL.md)** — Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
+- **[agent-status](./agent-status/SKILL.md)** — Audit every unit of running work a session owns (subagents, background tasks, agent-bridge sessions, remote runs) and give each a live/quiet/stale verdict with the action taken.
+- **[disk-cleanup](./disk-cleanup/SKILL.md)** — Reclaim disk on the Mac by running the housekeeping scripts in the order that works, with the guards they lack (/private/tmp vault copies, detached worktrees, the `out` kind footgun, df as the only measure).
 - **[perf-measurement](./perf-measurement/SKILL.md)** — Estimate and measure performance: back-of-envelope costing from a latency-numbers table, microbenchmarks, profiling.
 - **[perf-algorithms](./perf-algorithms/SKILL.md)** — Find algorithmic wins in a hot path: complexity reduction, fast paths, precomputing, deferring, caching.
 - **[perf-memory](./perf-memory/SKILL.md)** — Cut allocation and memory-representation costs: pre-sizing, copy avoidance, object reuse, compact layouts, indices over pointers.
