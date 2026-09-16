@@ -24,16 +24,28 @@ Validation: required commands and who runs each
 Stop: completion criteria, blockers to report, no further delegation unless authorized
 ```
 
-Pass the actual task context, not a pointer to an unrelated recent plan. Use the
-runtime's supported context mechanism; include critical scope and constraints even
-when history is inherited. Independent reviewers receive the requirements and
-artifacts, without being coached toward the author's conclusion.
+Children receive fresh context in every harness, so the brief carries the full
+assignment: the actual task context, not a pointer to an unrelated recent plan.
+Use the runtime's supported context mechanism, and include critical scope and
+constraints even when history is inherited. Independent reviewers receive the
+requirements and artifacts, without being coached toward the author's conclusion.
 
 For an authorized bridge assignment, follow [the bridge contract](agent-bridge.md).
 Record the caller harness separately from the worker target, retain the complete
 assignment, and save the returned task id. Include attempt/session ids, effective
 model/effort, usage provenance and missing fields, changed paths, actual validation,
 and reconciliation status in the result. The root remains the single integrator.
+
+## Workspace and runtime settings
+
+Prepare an explicit worktree and put its absolute path in the brief. Each harness
+reference records what its own native isolation option does instead, including the
+base it branches from and who owns the result.
+
+Check the live tool schema before passing model, effort, or capability overrides.
+A definition file and a worker's self-report are both claims about what should
+have run; confirm effective settings from the runtime's own reported resolution,
+or report the resolution as unknown.
 
 ## Ownership and evidence
 
