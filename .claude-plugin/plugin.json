@@ -39,6 +39,7 @@
     "./skills/engineering/wizard",
     "./skills/howardism/refine-skill",
     "./skills/howardism/refine-harness",
+    "./skills/howardism/refresh-harness-references",
     "./skills/howardism/codex-refine-harness",
     "./skills/howardism/afk-issue-loop",
     "./skills/howardism/bun-workspace-quality",
