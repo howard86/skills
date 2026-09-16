@@ -45,7 +45,7 @@ establish authority. Preserve both through selection and retries.
 1. Read [the common contract](references/common.md) and the selected harness
    reference. Apply user-selected models and constraints before recommendations.
 2. Check the current runtime's advertised models, effort values, tools, and
-   permissions. The dated recommendations are starting points, not an allowlist
+   permissions. The recorded recommendations are starting points, not an allowlist
    or proof of account access. Refresh when unavailable or contradicted by the
    live session; do not change account defaults just to inspect availability.
 3. Match the role: scout, implementer/committer, or reviewer/arbiter. Prefer the
