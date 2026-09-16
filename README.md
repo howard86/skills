@@ -238,6 +238,7 @@ Skills I wrote myself, with no counterpart in the upstream fork.
 
 - **[refine-skill](./skills/howardism/refine-skill/SKILL.md)**: Refine an existing skill by testing it against the live harness and its usage history before editing any prose.
 - **[refine-harness](./skills/howardism/refine-harness/SKILL.md)**: Prune, relocate, and sharpen the always-on harness config (global CLAUDE.md, rules-engine rules, hooks, auto-memory, skill listing, permissions, mirrors) against Anthropic's guidance and the last 30 days of evidence.
+- **[refresh-harness-references](./skills/howardism/refresh-harness-references/SKILL.md)**: Re-verify a multi-harness reference set against installed CLIs and vendor docs, then cut the claims the environment already answers.
 - **[blindspot](./skills/howardism/blindspot/SKILL.md)**: Diagnosis-only pass over a stated goal that surfaces the unknown unknowns, ranked by leverage, plus sharper follow-up prompts. Never edits.
 - **[perf-review](./skills/howardism/perf-review/SKILL.md)**: Fan out the perf-* angle skills as parallel subagents over a target and merge their findings into ranked, measurable improvement suggestions.
 - **[codex-fewer-permission-prompts](./skills/howardism/codex-fewer-permission-prompts/SKILL.md)**: Mine recent Codex transcripts for repeated read-only approvals and add narrow prefix rules for them.

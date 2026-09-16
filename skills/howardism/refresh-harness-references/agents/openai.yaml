@@ -1,0 +1,5 @@
+interface:
+  display_name: "Refresh Harness References"
+  short_description: "Re-verify a multi-harness reference set against live sources"
+policy:
+  allow_implicit_invocation: false
