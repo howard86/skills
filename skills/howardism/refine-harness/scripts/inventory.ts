@@ -297,7 +297,7 @@ const PREDICATES: Record<string, { what: string; eval: (evs: Ev[], fire: Row) =>
     eval: (evs, f) => { const a = after(evs, Date.parse(f.ts), f.agent ?? ""); return a.some((e) => (e.name === "Bash" && /\bgit\s+commit\b/.test(e.cmd)) || (e.name === "Agent" && /committer/.test(e.sub)) || (e.name === "Skill" && /commit-and-pr/.test(e.cmd))); },
   },
   "stop-pr": { what: "a subagent spawn follows the block", eval: (evs, f) => agents(after(evs, Date.parse(f.ts), f.agent ?? "")).length > 0 },
-  "pr-followthrough": { what: "a babysitter spawn follows the PR", eval: (evs, f) => agents(after(evs, Date.parse(f.ts), "")).length > 0 },
+  "pr-followthrough": { what: "later branch updates rebase + force-push rather than merge", eval: (evs, f) => { const a = bash(after(evs, Date.parse(f.ts), "")).filter((e) => /\bgit\s+(push|merge)\b/.test(e.cmd)); if (!a.length) return null; return a.every((e) => !/\bgit\s+merge\b/.test(e.cmd)); } },
   "workflow-apply": {
     what: "an implementer spawn follows, or fewer than five inline writes",
     eval: (evs, f) => { const a = after(evs, Date.parse(f.ts), ""); const writes = tools(a).filter((e) => ["Edit", "Write", "MultiEdit", "NotebookEdit"].includes(e.name)).length; if (agents(a).some((e) => /implement|sonnet|general-purpose/.test(e.sub))) return true; return writes < 5; },
