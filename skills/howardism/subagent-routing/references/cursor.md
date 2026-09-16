@@ -1,8 +1,10 @@
 # Cursor CLI subagent reference
 
-Reviewed 2026-09-08 against Cursor Agent CLI 2026.08.25-3e8eec8. The running harness
-is Cursor even when its selected model is GPT, Gemini, Claude, or Grok. Grok 4.6
-inside Cursor uses this reference, not the standalone Grok Build reference.
+Regenerate these facts with `cursor-agent --version`, `cursor-agent --list-models`,
+and `~/.cursor/cli-config.json` for saved state. Last checked against Cursor Agent
+CLI 2026.09.02-c22c1a3. The running harness is Cursor even when its selected model
+is GPT, Gemini, Claude, or Grok. Grok 4.6 inside Cursor uses this reference, not
+the standalone Grok Build reference.
 
 ## Suggested routing
 
@@ -22,22 +24,28 @@ Cursor documents low, medium, high, and xhigh effort, with plan-dependent defaul
 Non-Claude alternatives remain available: `gpt-5.6-luna-low` for narrow work,
 `gpt-5.6-terra-medium` for implementation, and `gpt-5.6-sol-high` or
 `gpt-5.6-sol-xhigh` for difficult judgment. `composer-2.5` is another local
-implementation option. Verify exact IDs with `cursor-agent --list-models` (or
-`agent --list-models`). Availability in the list does not prove remaining quota.
+implementation option. The 5.6 family carries more effort tiers than Grok 4.6
+does, including `none` and `max` (`gpt-5.6-sol-none`, `gpt-5.6-terra-max`). Verify
+exact IDs with `cursor-agent --list-models` (or `agent --list-models`).
+Availability in the list does not prove remaining quota.
 
 ## Runtime adapter
 
-Use Cursor's exposed `Task`/subagent interface. Native custom definitions live in
-`.cursor/agents/` or `~/.cursor/agents/`; compatible Claude/Codex definitions may
-also load. Pass the full assignment because children receive fresh context.
-If this session lacks delegation, follow the router's unsupported-route rule.
+Use Cursor's exposed `Task`/subagent interface. Custom definitions load from the
+project at `.cursor/agents/`, `.claude/agents/`, or `.codex/agents/`, and from the
+user at `~/.cursor/agents/`, `~/.claude/agents/`, or `~/.codex/agents/`; `.cursor/`
+wins a name conflict. If this session lacks delegation, follow the router's
+unsupported-route rule.
 
 Keep the two model representations separate:
 
 - CLI launch flag: `--model cursor-grok-4.6-medium` uses the local catalog alias.
 - Custom subagent frontmatter: `model: grok-4.6[effort=medium,fast=false]` uses
-  the base model and Cursor's parameter syntax. Use `low`, `high`, or `xhigh`
-  for the other roles above. Do not copy standalone Grok or Codex effort flags.
+  the base model and Cursor's parameter syntax, with comma-separated `id=value`
+  pairs over the supported `fast`, `effort`, and `context` parameters
+  (`claude-opus-5[effort=high,context=300k]`, `composer-2.5[fast=false]`). Use
+  `low`, `high`, or `xhigh` for the other roles above. Do not copy standalone Grok
+  or Codex effort flags.
 
 For example, a custom read-only scout definition can start with:
 
@@ -50,15 +58,16 @@ readonly: true
 ---
 ```
 
-Put the assignment contract in the body. For an implementation worker omit
-`readonly: true` and explicitly assign its writable files. `is_background` is
-optional. Custom agents otherwise inherit the parent model. Policy or plan
-restrictions can substitute a model; inspect actual resolution and never treat
-a definition or the worker's self-report as proof of what ran.
+Put the assignment contract in the body. The frontmatter fields and their defaults
+are `name` (the filename), `description`, `model` (`inherit`), `readonly` (false),
+and `is_background` (false). For an implementation worker drop `readonly` and
+explicitly assign its writable files. Policy or plan restrictions can substitute a
+model.
 [Custom subagent configuration](https://cursor.com/docs/subagents)
 
-Prepare an explicit worktree when isolation is needed; custom agent fields do
-not establish automatic isolation. Project `AGENTS.md`, `CLAUDE.md`, and
+Isolation is requested, not conferred by those fields: a subagent can receive an
+isolated project copy with its own Git worktree and separate working directory
+when the assignment asks for one. Project `AGENTS.md`, `CLAUDE.md`, and
 `.cursor/rules` do not change the running harness.
 [Cursor CLI rules](https://cursor.com/docs/cli/using)
 
@@ -86,9 +95,3 @@ after CLI updates. Preserve unrelated settings and spend limits.
 The shared skills are linked at `~/.cursor/skills/{subagent-routing,
 implement-with-subagent,commit-with-subagent}`. New sessions discover their
 metadata and read the selected harness reference on invocation.
-
-Local setup check on 2026-09-08: a read-only Grok 4.6 medium CLI request completed
-and discovered all three skills. Cursor persisted the parent selection as
-`grok-4.6` with `effort=medium,fast=false`; built-in Explore was configured as
-`subagentModels.explore="grok-4.6"`. The check proves parent access and skill
-discovery, not an independently confirmed child model or Explore effort/speed.
