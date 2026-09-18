@@ -23,6 +23,20 @@ bun $S prompts --days 30 [--project sub]     # every user prompt: [time project 
 
 Map scope args to flags: `/retro 7d` → `--days 7`, `/retro all` → a `--days` window covering the whole corpus (the scan reads transcripts directly, so cost scales with the window), project substring → `--project`.
 
+**Push-back ledger** (rows exist from 2026-09-18): the rules engine appends a row to `~/.claude/rules-engine-state/audit.jsonl` for every prompt that opens as a correction (`pushback`, `pushback-undo`) and for every turn Claude opened by conceding to the human (`pushback-conceded`). Read it before the prompt scan:
+
+```bash
+python3 - <<'PY'
+import json
+for line in open('/Users/howard86/.claude/rules-engine-state/audit.jsonl'):
+    row = json.loads(line)
+    if row.get('rule', '').startswith('pushback'):
+        print(row['ts'], row['rule'], row.get('cwd', ''), row['session'], '::', row.get('detail', ''))
+PY
+```
+
+`pushback` and `pushback-conceded` rows are corrections; `pushback-undo` is the noisier removal tier (about 40% genuine). A concession row is the higher-value find: the prompt that produced it usually did not read as a correction (`verify if we can skip depth for SGD`, `how about depth update feeds?`), so nothing else in the scan would surface it. `detail` holds 120 chars; `session` is the recovery path (`bun $S show <session> --grep <term>`). A `cwd` recurring across sessions is a standing-rule gap, not a one-off. The ledger keeps the newest half of a 5 MB cap (about 38 days at the 2026-09 volume), so windows reaching further back still need the prompt scan.
+
 **Conversational context** (what went wrong after a prompt): `bun $S show <sess-id> --grep <term>`, add `--tools` for the exact commands/errors. Full-text lookup across transcripts: `bun $S search <query>`. Don't bulk-read raw transcripts; they're large.
 
 For large scopes, fan out one Explore/general-purpose agent (Sonnet) per project group instead of reading everything inline.
@@ -32,7 +46,7 @@ For large scopes, fan out one Explore/general-purpose agent (Sonnet) per project
 Look for, in priority order:
 
 1. **Repeated prompts** — same request typed ≥3 times (exact or paraphrased) → skill or slash-command candidate.
-2. **Corrections** — user follow-ups like "no, ...", "actually", "I meant", "don't do X" → a missing standing rule (CLAUDE.md or memory). Recurring corrections outrank one-offs.
+2. **Corrections** — user follow-ups like "no, ...", "actually", "I meant", "don't do X" → a missing standing rule (CLAUDE.md or memory). Recurring corrections outrank one-offs. Start from the ledger rows gathered in §1; the prompt scan adds only what the anchored openers miss (an interrupt followed by a restated prompt, or a question that turned out to be a correction Claude never conceded).
 3. **Long hand-written prompts** — detailed multi-paragraph instructions re-explained across sessions → skill with the instructions baked in.
 4. **Re-done work** — the same task appearing solved in two sessions (`search` for its key terms across the window) → memory or reference doc gap.
 5. **Prompt-quality anti-patterns** — vague asks that led to long clarification loops → suggest a sharper template.
