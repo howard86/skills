@@ -411,7 +411,7 @@ async function show(idOrPath: string) {
   else if (tail) msgs = msgs.slice(-tail);
   console.log(`# ${labelOf(path)}  ${sessionOf(path)}  (${msgs.length} messages)\n# ${path}\n`);
   for (const m of msgs) {
-    const t = m.text.length > width ? `${m.text.slice(0, width)}… [+${m.text.length - width}]` : m.text;
+    const t = width && m.text.length > width ? `${m.text.slice(0, width)}… [+${m.text.length - width}]` : m.text;
     console.log(`[${m.role} ${m.ts.slice(0, 19)}]\n${t}\n`);
   }
 }

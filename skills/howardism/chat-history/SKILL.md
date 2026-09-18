@@ -41,7 +41,7 @@ Output is one block per session: source, project, session id, absolute path, the
 bun $S show <session-id|path> [--grep re] [--tools] [--width N] [--tail N] [--last]
 ```
 
-Accepts a bare session UUID (resolved against both corpora) or a file path. `--grep` keeps only matching messages, `--tail N` the last N, `--width` truncates each message (default 600 chars). `--last` prints only the final assistant text message (tool traffic excluded). Use it to pull a spawned subagent's closing report. `--last` and `--tail` are mutually exclusive. Start narrow: full sessions are large.
+Accepts a bare session UUID (resolved against both corpora) or a file path. `--grep` keeps only matching messages, `--tail N` the last N, `--width` truncates each message (default 600 chars, `--width 0` = no truncation). `--last` prints only the final assistant text message (tool traffic excluded). Use it to pull a spawned subagent's closing report. `--last` and `--tail` are mutually exclusive. Start narrow: full sessions are large.
 
 ## prompts
 
