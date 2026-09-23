@@ -3,28 +3,30 @@
 Regenerate these facts with `cursor-agent --version`, `cursor-agent --list-models`,
 and `~/.cursor/cli-config.json` for saved state. Last checked against Cursor Agent
 CLI 2026.09.02-c22c1a3. The running harness is Cursor even when its selected model
-is GPT, Gemini, Claude, or Grok. Grok 4.6 inside Cursor uses this reference, not
-the standalone Grok Build reference.
+is GPT, Gemini, Claude, or Grok. Grok inside Cursor uses this reference, not the
+standalone Grok Build reference.
 
 ## Suggested routing
 
 | Role | Grok route: local CLI model ID | Escalation |
 | --- | --- | --- |
-| Narrow search, extraction, mechanical groups | `cursor-grok-4.6-low` | `cursor-grok-4.6-medium` |
-| Implementation, tests, ordinary review, commit grouping | `cursor-grok-4.6-medium` | `cursor-grok-4.6-high` |
-| Difficult diagnosis, high-risk review, arbitration | `cursor-grok-4.6-high` | `cursor-grok-4.6-xhigh` |
+| Narrow search, extraction, mechanical groups | `grok-4.7-low` | `grok-4.7-medium` |
+| Implementation, tests, ordinary review, commit grouping | `grok-4.7-medium` | `grok-4.7-high` |
+| Difficult diagnosis, high-risk review, arbitration | `grok-4.7-high` | `grok-4.7-xhigh` |
 
 Use these Grok routes by default for delegated work unless the user selects
-another model. These are workflow suggestions, not benchmark claims. Standard
-speed is the starting choice; the live catalog also lists a `-fast` variant for
-each effort. Select Fast explicitly when the task warrants its different cost.
-Cursor documents low, medium, high, and xhigh effort, with plan-dependent defaults.
-[Grok 4.6 parameters and pricing](https://cursor.com/docs/models/grok-4-6)
+another model. These are workflow suggestions, not benchmark claims. Grok 4.7 IDs
+carry no `cursor-` prefix; the older `cursor-grok-4.6-*` and `cursor-grok-4.5-*`
+entries remain listed. The standard ID is the starting choice; the catalog also
+lists a `-fast` variant for each effort, which Cursor makes the default speed
+tier on Pro and higher plans at twice the standard price. Cursor documents low,
+medium, high (the default), and xhigh effort.
+[Grok 4.7 parameters and pricing](https://cursor.com/docs/models/grok-4-7)
 
 Non-Claude alternatives remain available: `gpt-5.6-luna-low` for narrow work,
 `gpt-5.6-terra-medium` for implementation, and `gpt-5.6-sol-high` or
 `gpt-5.6-sol-xhigh` for difficult judgment. `composer-2.5` is another local
-implementation option. The 5.6 family carries more effort tiers than Grok 4.6
+implementation option. The 5.6 family carries more effort tiers than Grok 4.7
 does, including `none` and `max` (`gpt-5.6-sol-none`, `gpt-5.6-terra-max`). Verify
 exact IDs with `cursor-agent --list-models` (or `agent --list-models`).
 Availability in the list does not prove remaining quota.
@@ -39,8 +41,8 @@ unsupported-route rule.
 
 Keep the two model representations separate:
 
-- CLI launch flag: `--model cursor-grok-4.6-medium` uses the local catalog alias.
-- Custom subagent frontmatter: `model: grok-4.6[effort=medium,fast=false]` uses
+- CLI launch flag: `--model grok-4.7-medium` uses the local catalog alias.
+- Custom subagent frontmatter: `model: grok-4.7[effort=medium,fast=false]` uses
   the base model and Cursor's parameter syntax, with comma-separated `id=value`
   pairs over the supported `fast`, `effort`, and `context` parameters
   (`claude-opus-5[effort=high,context=300k]`, `composer-2.5[fast=false]`). Use
@@ -53,7 +55,7 @@ For example, a custom read-only scout definition can start with:
 ---
 name: grok-scout
 description: Research a bounded question and return evidence without editing files.
-model: grok-4.6[effort=low,fast=false]
+model: grok-4.7[effort=low,fast=false]
 readonly: true
 ---
 ```
@@ -74,16 +76,16 @@ when the assignment asks for one. Project `AGENTS.md`, `CLAUDE.md`, and
 ## Persistent local setup
 
 When asked to change the default parent model, use interactive `/model` to select
-Grok 4.6 and its effort/speed variant. Let Cursor write its model metadata in
+Grok 4.7 and its effort/speed variant. Let Cursor write its model metadata in
 `~/.cursor/cli-config.json`; do not synthesize the display object. A command-line
 model selection is suitable for an explicit run, but inspect saved settings
 afterward rather than assuming it cannot persist.
 [CLI configuration](https://cursor.com/docs/cli/reference/configuration)
 
 Built-in Explore has its own setting. In CLI Settings, use **Explore Subagent
-Model** and select Grok 4.6 when requested. In the installed build this writes
-`subagentModels.explore: "grok-4.6"`, which takes precedence over the legacy
-`exploreSubagentModel`. The legacy field only accepts `default` or `inherit`;
+Model** and select the requested Grok version. The installed build writes the
+base model to `subagentModels.explore` (verified as `"grok-4.6"` when that key
+was introduced), which takes precedence over the legacy `exploreSubagentModel`. The legacy field only accepts `default` or `inherit`;
 never assign it a model ID. These keys were verified from the installed CLI
 schema and Settings implementation, not a published configuration schema.
 
