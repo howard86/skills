@@ -1,29 +1,40 @@
 # Codex subagent reference
 
-Regenerate these facts with `codex --version` and the live `spawn_agent` schema in
-a Codex session. Last checked against codex-cli 0.154.0. Applies only to a Codex
-session, regardless of model provider or which compatible skill directory supplied
-these instructions.
+Regenerate these facts with `codex --version`, `~/.codex/models_cache.json` (the
+account's fetched catalog), and the live `spawn_agent` schema in a Codex session.
+Last checked against codex-cli 0.154.0 with the catalog fetched 2026-09-23.
+Applies only to a Codex session, regardless of model provider or which compatible
+skill directory supplied these instructions.
 
 ## Suggested routing
 
 | Role | Starting choice | Escalation |
 | --- | --- | --- |
-| Targeted search, inventories, extraction | `gpt-5.3-codex-spark`; `gpt-5.6-luna`, low, once the scan needs judgment | Terra, medium |
-| Implementation, tests, ordinary review, commit grouping | `gpt-5.6-terra`, medium | Sol, medium/high |
-| Difficult diagnosis, high-risk review, arbitration | `gpt-5.6-sol`, medium/high | `gpt-6-astra`, medium/high for unresolved complex work |
+| Targeted search, inventories, extraction | `gpt-6-luna`, low; medium once the scan needs judgment | `gpt-6-sol`, medium |
+| Implementation, tests, ordinary review, commit grouping | `gpt-6-sol`, medium | `gpt-6-astra`, medium |
+| Difficult diagnosis, high-risk review, arbitration | `gpt-6-astra`, medium or high | `gpt-6-astra`, xhigh or max |
 
-The recommended catalog is `gpt-6-astra`, `gpt-5.6-sol`, `gpt-5.6-terra`,
-`gpt-5.6-luna`, and `gpt-5.3-codex-spark`. `gpt-5.5` retires 2026-10-14, and
-`gpt-5.4` and `gpt-5.4-mini` retire 2026-08-31. These are workflow
-recommendations, not measured rankings for this repository; check the live catalog
-on another host or session. Keep a user-selected root model; selecting a worker
+This account has the GPT-6 family: `gpt-6-astra` ("frontier intelligence for the
+most demanding work", default effort medium), `gpt-6-sol` ("start here for
+demanding agents"), and `gpt-6-luna` ("fast, narrowly scoped agents"). The CLI's
+`models_cache.json` fetched 2026-09-23 listed only Astra among them, so the cache
+under-reports the picker: confirm Sol and Luna in the live session. Behind them
+sit `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna` marked "Older", and
+`gpt-5.5` as legacy, retiring 2026-10-14 with `gpt-5.6-sol` as its upgrade.
+`gpt-5.4`, `gpt-5.4-mini`, and `gpt-5.3-codex-spark` are gone. Hidden entries
+(`gpt-reserve`, `codex-auto-review`) are not routes. OpenAI's own worker
+defaults are medium for Sol, high for Luna, and low for Astra, so a scout that
+outgrows Luna can also step to Astra at low. These are workflow recommendations,
+not measured rankings; keep a user-selected root model, since selecting a worker
 does not require changing it.
 [Official model guidance](https://learn.chatgpt.com/docs/models)
 
-Documented reasoning efforts are Light, Medium, High, Extra High, Max, and Ultra.
-Those are display names, so the table's low/medium/high are role guidance: read
-the accepted values off the live schema.
+Catalog effort values are `low`, `medium`, `high`, `xhigh`, `max`, and, on Astra
+and Sol, `ultra`. `ultra` is "maximum reasoning with automatic task delegation":
+a worker at `ultra` spawns workers of its own, which breaks the common contract's
+no-further-delegation stop, so cap workers at `max`. The desktop picker also shows
+`persistent`; read accepted values off the live schema. An unconfigured worker
+inherits the parent's model and effort.
 
 ## Runtime adapter
 
