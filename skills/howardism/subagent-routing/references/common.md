@@ -24,8 +24,9 @@ Validation: required commands and who runs each
 Stop: completion criteria, blockers to report, no further delegation unless authorized
 ```
 
-Children receive fresh context in every harness, so the brief carries the full
-assignment: the actual task context, not a pointer to an unrelated recent plan.
+Children receive fresh context in every harness (a Claude Code fork is the one
+exception), so the brief carries the full assignment: the actual task context,
+not a pointer to an unrelated recent plan.
 Use the runtime's supported context mechanism, and include critical scope and
 constraints even when history is inherited. Independent reviewers receive the
 requirements and artifacts, without being coached toward the author's conclusion.
@@ -56,7 +57,7 @@ read-only through its harness's enforcing field:
 
 | Harness | Read-only configuration |
 | --- | --- |
-| Claude Code | `permissionMode: plan`, or `disallowedTools: Write, Edit` |
+| Claude Code | `disallowedTools: Write, Edit`, or the built-in `Explore` type; frontmatter `permissionMode: plan` is ignored when the main session runs in `auto`, `acceptEdits`, or `bypassPermissions` |
 | Codex | `sandbox_mode` in the agent's TOML |
 | Antigravity | `commandExecutionPolicy: off` plus an explicit `tools` whitelist |
 | Cursor | `readonly: true` |
