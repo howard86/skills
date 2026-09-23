@@ -144,6 +144,17 @@ export const isSubagentTranscript = (path: string) => path.includes("/subagents/
 export const isInjectedTurn = (text: string) =>
   text.startsWith("<") || text.startsWith("# AGENTS.md instructions for");
 
+// Skill turns collapse to one-line markers so `prompts` counts skill usage instead of printing
+// skill bodies: a typed `/x args` (command wrapper) → `[/x args]`; a skill body, which follows a
+// typed `/x` or is the assistant's own Skill-tool load → `[skill:x]`.
+export const skillMarker = (text: string): string | null => {
+  const cmd = /^<command-message>[^<]*<\/command-message>\s*<command-name>\/(\S+)<\/command-name>(?:\s*<command-args>([\s\S]*?)<\/command-args>)?/.exec(text);
+  if (cmd) return `[/${cmd[1]}${cmd[2]?.trim() ? " " + cmd[2].trim().replace(/\s+/g, " ") : ""}]`;
+  const body = /^Base directory for this skill: ([^\n]+)/.exec(text); // path may hold spaces
+  if (body) return `[skill:${body[1].trim().replace(/\/+$/, "").split("/").pop()}]`;
+  return null;
+};
+
 // --- search ----------------------------------------------------------------
 const isDir = (p: string) => stat(p).then((s) => s.isDirectory(), () => false);
 
@@ -304,11 +315,21 @@ async function dumpPrompts(days: number, project: string, includeAgents: boolean
     for await (const p of new Bun.Glob("**/*.jsonl").scan({ cwd: dir, absolute: true })) {
       if (!includeAgents && isSubagentTranscript(p)) continue;
       if (Bun.file(p).lastModified < cutoff) continue;
+      const sid = sessionOf(p);
       for (const m of (await parseFile(p, /"type":"user"/)).filter((m) => m.role === "user")) {
         const text = m.text.trim();
-        if (!text || isInjectedTurn(text)) continue;
+        if (!text) continue;
+        const marker = skillMarker(text);
+        if (marker) {
+          // A typed `/x` arrives as a wrapper turn then the body turn; keep one row for the pair.
+          const prev = rows.at(-1);
+          if (marker.startsWith("[skill:") && prev?.sid === sid && prev.text.startsWith(`[/${marker.slice(7, -1)}`)) continue;
+          rows.push({ ts: m.ts, project: proj, sid, text: marker });
+          continue;
+        }
+        if (isInjectedTurn(text)) continue;
         if (text.startsWith("Another Claude session sent a message:") || /^\d+ background agents? (was|were) stopped/.test(text)) continue;
-        rows.push({ ts: m.ts, project: proj, sid: sessionOf(p), text });
+        rows.push({ ts: m.ts, project: proj, sid, text });
       }
     }
   }
@@ -446,6 +467,11 @@ if (cmd === "selfcheck") {
   console.assert(!isSubagentTranscript("/a/parent-uuid/session.jsonl"), "isSubagentTranscript non-subagent path");
   const child = JSON.stringify({ type: "session_meta", payload: { id: "c", parent_thread_id: "p", cwd: "/x" } });
   console.assert(codexParentThread(child) === "p" && codexParentThread(meta) === "" && codexParentThread("nope") === "", "codexParentThread");
+  console.assert(skillMarker("<command-message>retro</command-message>\n<command-name>/retro</command-name>\n<command-args>7d</command-args>") === "[/retro 7d]", "skillMarker typed command with args");
+  console.assert(skillMarker("<command-message>retro</command-message>\n<command-name>/retro</command-name>") === "[/retro]", "skillMarker typed command");
+  console.assert(skillMarker("Base directory for this skill: /Users/x/.claude/skills/retro\n\n# Retro") === "[skill:retro]", "skillMarker body");
+  console.assert(skillMarker("Base directory for this skill: /Users/x/Algo Trading/.claude/skills/vault-tooling\n\n# Local") === "[skill:vault-tooling]", "skillMarker body with spaces");
+  console.assert(skillMarker("fix the bug") === null && skillMarker("<task-notification>x") === null, "skillMarker non-skill");
   console.assert(isInjectedTurn("<command-name>/x</command-name>") && isInjectedTurn("# AGENTS.md instructions for /p\n\n<INSTRUCTIONS>") && !isInjectedTurn("fix the bug"), "isInjectedTurn");
 
   console.assert(findBadFlagValue(["--days", "abc"], { days: "num" }) !== null, "numeric flag rejects abc");
