@@ -13,14 +13,15 @@ Default: last 30 days, all projects. Args override: `/retro 7d` → `--days 7`, 
 
 ## 1. Scan
 
-One command produces every evidence table; read its output instead of writing ad-hoc parsers:
+One command produces every evidence table and the worker briefs for step 2; read its output instead of writing ad-hoc parsers:
 
 ```bash
 S=~/.claude/skills/retro/scripts/retro-scan.ts   # Codex: ~/.agents/skills/retro/scripts/retro-scan.ts
-bun $S --days 30 [--project sub] [--cap 12] > retro-scan.md
+R=<scratchpad>/retro && mkdir -p $R               # the session scratchpad; a redirect into a missing dir fails before the script runs
+bun $S --days 30 [--project sub] [--cap 12] --briefs $R > $R/scan.md
 ```
 
-The script runs chat-history's `chatlog prompts` (the transcript parser, guarded by its `selfcheck`), applies the noise filter, and prints: the push-back ledger, skill usage (typed `/x` vs assistant-loaded), keyword→skill gaps, correction openers, nudges, repeated prompts, long prompts, Stop-hook goals, and hand-typed prompts per project. `--prompts <file>` reuses a saved `chatlog prompts --width 0` dump. `--cap` bounds each list.
+The script runs chat-history's `chatlog prompts` (the transcript parser, guarded by its `selfcheck`), applies the noise filter, and prints: the push-back ledger, skill usage (typed `/x` vs assistant-loaded), keyword→skill gaps, correction openers, nudges, repeated prompts, long prompts, Stop-hook goals, and hand-typed prompts per project. `--briefs $R` also writes `brief-<bucket>.md` per non-empty verification bucket (nudges, corrections, gaps, repeats), each a complete read-only worker brief: the question, the chatlog commands, the items, and the verdict file to write. A bucket over 24 items splits into `-1`, `-2` parts (`--per-brief N`). `--prompts <file>` reuses a saved `chatlog prompts --width 0` dump. `--cap` bounds each list. The scan is ~22 KB for a 30-day window; read it at root, it is the evidence. Transcript output of any size stays out of root: that is what step 2 is for.
 
 **Noise filter** lives in the script: `HARNESS_ROWS` (interrupts, images, continuations, idle notices, stopped background agents), `COMMAND_BODIES` (built-in and vault command bodies that land as user turns without a marker), harness projects (every session holds exactly one prompt: the home-dir cwd, `/private/tmp`, eval fixtures). Skill bodies arrive as `[skill:x]` or `[/x args]` marker rows from chatlog. When a "repeat" in the output turns out to be a command body or an automation echo (cron, `/loop`, ScheduleWakeup: identical long imperative prompts at regular intervals), add its prefix to `COMMAND_BODIES` and rerun; count the hand-typed bootstrap once. Fork echoes (one prompt under two session ids in the same minute inside a `--claude-worktrees-` project) are one prompt.
 
