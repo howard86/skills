@@ -4,13 +4,13 @@ Regenerate these facts with `grok --version`, `grok models`, and the installed
 guide at `~/.grok/docs/user-guide/16-subagents.md`, whose relevant sections are
 "Personas", "Persona Resolution", "Spawning Subagents", "Capability Modes",
 "Per-Type Toggles and Model Overrides", and "Depth Limits". Last checked against
-Grok Build 1.0.30. Applies to the official Grok Build CLI, not every third-party
+Grok Build 1.0.35. Applies to the official Grok Build CLI, not every third-party
 command named `grok`.
 
 ## Suggested routing
 
-The local authenticated `grok models` list contains only **`grok-4.6`**, also the
-default, so all three role tiers share one model. Differentiate workloads with
+`grok models` on 1.0.35 lists only **`grok-4.7`**, also the default, so all three
+role tiers share one model. Differentiate workloads with
 agent type, capability mode, and role or persona defaults.
 
 | Role | Agent type and capability mode |
@@ -55,7 +55,7 @@ unreadable `instructions_file`) fails the spawn.
 
 Per-type configuration lives in `[subagents.toggle]`, which enables or disables a
 type, and `[subagents.models]`, which routes a type to a model
-(`explore = "grok-4.6"`). A per-type override applies for any parent; without one
+(`explore = "grok-4.7"`). A per-type override applies for any parent; without one
 the child inherits the parent's model. Avoid changing global routing while other
 sessions are active.
 
