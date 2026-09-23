@@ -22,7 +22,7 @@ Confirm the target is non-empty before going further — a missing target should
 
 One per angle, each `general-purpose` with an explicit `model` (default `opus`; a "with sonnet" argument overrides): perf-algorithms, perf-memory, perf-api, perf-overhead.
 
-Each subagent's prompt: invoke its member skill and the `perf-measurement` skill by name, sweep the target, and report **every** finding with no self-filtering — thresholds apply at presentation, not detection. Per finding: file:line, the hint violated, the concrete change, a back-of-envelope cost estimate, and confidence.
+Each subagent's prompt: invoke its member skill and the `perf-measurement` skill by name, sweep the target, and report **every** finding with no self-filtering — thresholds apply at presentation, not detection. Tell each one to put the full report in its final assistant message, never in a `SendMessage`: a named agent that messages a summary and goes idle leaves no final text, and stopping it then loses the rest. Per finding: file:line, the hint violated, the concrete change, a back-of-envelope cost estimate, and confidence.
 
 ### 3. Merge
 
