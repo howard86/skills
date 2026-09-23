@@ -1,7 +1,7 @@
 # Antigravity subagent reference
 
 Regenerate these facts with `agy --version`, `agy models`, and `agy --help`. Last
-checked against AGY 1.2.4. Apply to Antigravity/AGY, not Gemini CLI merely because
+checked against AGY 1.2.9. Apply to Antigravity/AGY, not Gemini CLI merely because
 both use a `.gemini` directory.
 
 ## Suggested routing
@@ -28,7 +28,7 @@ Git worktree; verify its repo, base, and path before relying on it. Its model ti
 `inherit`, `flash`, or `pro`. Calls are asynchronous: retain the child handle and
 await its result. Maximum nesting depth is 10 levels.
 
-AGY 1.2.4 adds a session `--agent` flag ("Agent for the current CLI session") and
+AGY 1.2.4 added a session `--agent` flag ("Agent for the current CLI session") and
 `agent`/`agents` subcommands that list available agents.
 
 A custom definition requires `name` and `description`, and optionally takes
