@@ -7,8 +7,9 @@
 //   bun chatlog.ts sessions [--source claude|codex|all] [--days N] [--project sub] [--limit N] [--include-agents]
 //   bun chatlog.ts selfcheck
 // search/prompts default --days 30, sessions defaults --days 7; --days 0 means unlimited.
-// --include-agents opts subagent transcripts (Claude <parent-uuid>/subagents/agent-*.jsonl, Codex
-// rollouts whose session_meta names a parent_thread_id) back into prompts/sessions.
+// --include-agents opts subagent transcripts (Claude <parent-uuid>/subagents/agent-*.jsonl, named
+// Claude workers whose records carry an agentName, Codex rollouts whose session_meta names a
+// parent_thread_id) back into prompts/sessions.
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 
@@ -139,6 +140,18 @@ const labelOf = (path: string) =>
 // briefs, not prompts the human typed: excluded from prompts/sessions unless opted back in.
 export const isSubagentTranscript = (path: string) => path.includes("/subagents/");
 
+// A worker spawned with a `name` writes a top-level <uuid>.jsonl beside the human's sessions,
+// not under subagents/. Its records carry `agentName`, and its first user turn is the brief
+// relayed as a <teammate-message>, so it reads as a session with a blank prompt otherwise.
+export const claudeAgentName = (line: string): string => {
+  try { return String(JSON.parse(line)?.agentName ?? ""); } catch { return ""; }
+};
+async function namedAgentOf(path: string): Promise<string> {
+  if (path.includes("/.codex/")) return "";
+  const line = await readFirstMatchingLine(path, /"type":"user"/);
+  return line ? claudeAgentName(line) : "";
+}
+
 // Harness-injected user turns: command wrappers, task notifications, teammate relays and
 // stop notices (Claude, all `<...>`), and the AGENTS.md block Codex prepends as a user message.
 export const isInjectedTurn = (text: string) =>
@@ -250,6 +263,24 @@ async function readFirstLine(path: string): Promise<string> {
   }
 }
 
+// Streams until the first line matching `re`; "" when none. Stops early like readFirstLine.
+async function readFirstMatchingLine(path: string, re: RegExp): Promise<string> {
+  const reader = Bun.file(path).stream().getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (value) buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) !== -1) {
+      const line = buf.slice(0, nl);
+      buf = buf.slice(nl + 1);
+      if (re.test(line)) { reader.cancel(); return line; }
+    }
+    if (done) return re.test(buf) ? buf : "";
+  }
+}
+
 async function matchesProject(f: string, project: string): Promise<boolean> {
   if (!project) return true;
   if (f.includes("/.codex/")) return codexCwd(await readFirstLine(f)).toLowerCase().includes(project.toLowerCase());
@@ -313,8 +344,8 @@ async function dumpPrompts(days: number, project: string, includeAgents: boolean
     if (project && !proj.toLowerCase().includes(project.toLowerCase())) continue;
     if (!(await isDir(dir))) continue;
     for await (const p of new Bun.Glob("**/*.jsonl").scan({ cwd: dir, absolute: true })) {
-      if (!includeAgents && isSubagentTranscript(p)) continue;
       if (Bun.file(p).lastModified < cutoff) continue;
+      if (!includeAgents && (isSubagentTranscript(p) || (await namedAgentOf(p)))) continue;
       const sid = sessionOf(p);
       for (const m of (await parseFile(p, /"type":"user"/)).filter((m) => m.role === "user")) {
         const text = m.text.trim();
@@ -356,7 +387,12 @@ async function firstUserPrompt(path: string): Promise<string> {
       try { obj = JSON.parse(line); } catch { continue; }
       const u = (codex ? codexMsgs(obj) : claudeMsgs(obj)).find((m) => m.role === "user");
       const text = u?.text.trim();
-      if (text && !isInjectedTurn(text)) { reader.cancel(); return text; }
+      if (!text) continue;
+      if (!isInjectedTurn(text)) { reader.cancel(); return text; }
+      if (obj.agentName && text.startsWith("<teammate-message")) {
+        reader.cancel();
+        return `[agent:${obj.agentName}] ${text.replace(/^<teammate-message[^>]*>\s*/, "")}`;
+      }
     }
     if (done) return "";
   }
@@ -399,6 +435,7 @@ async function sessions() {
     // Codex child threads are only detectable from the file's first line, so filter lazily
     // here rather than reading every rollout in the window up front.
     if (!includeAgents && f.includes("/.codex/") && codexParentThread(await readFirstLine(f))) continue;
+    if (!includeAgents && (await namedAgentOf(f))) continue;
     shown++;
     const ts = new Date(mtime).toISOString().slice(0, 16).replace("T", " ");
     const prompt = oneLine(await firstUserPrompt(f)).slice(0, 100);
@@ -465,6 +502,8 @@ if (cmd === "selfcheck") {
 
   console.assert(isSubagentTranscript("/a/parent-uuid/subagents/agent-x.jsonl"), "isSubagentTranscript excludes by default");
   console.assert(!isSubagentTranscript("/a/parent-uuid/session.jsonl"), "isSubagentTranscript non-subagent path");
+  console.assert(claudeAgentName('{"agentName":"review-C","type":"user","message":{"role":"user","content":"<teammate-message>x"}}') === "review-C", "claudeAgentName named worker");
+  console.assert(claudeAgentName('{"type":"user","message":{"role":"user","content":"hi"}}') === "" && claudeAgentName("nope") === "", "claudeAgentName plain session");
   const child = JSON.stringify({ type: "session_meta", payload: { id: "c", parent_thread_id: "p", cwd: "/x" } });
   console.assert(codexParentThread(child) === "p" && codexParentThread(meta) === "" && codexParentThread("nope") === "", "codexParentThread");
   console.assert(skillMarker("<command-message>retro</command-message>\n<command-name>/retro</command-name>\n<command-args>7d</command-args>") === "[/retro 7d]", "skillMarker typed command with args");
