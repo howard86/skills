@@ -44,22 +44,22 @@ Fan out more than one agent only when the window exceeds 90 days or spans more t
 
 With the scan and the verdicts, look for, in priority order:
 
-1. **Repeated prompts** — same request typed ≥3 times (exact or paraphrased) → skill or slash-command candidate.
-2. **Corrections** — ledger rows plus verified opener rows → a missing standing rule (CLAUDE.md or memory). Recurring corrections outrank one-offs.
-3. **Skill usage** — a skill with zero loads whose keyword gaps are real is a pointer problem (sharpen its description or add a rule that names it); a skill loaded only by the assistant that the user keeps describing by hand ("create atomic commits and PR") wants a rules-engine trigger; a mid-sentence `/x` mention with nothing loaded after it is a `skill-mention` miss.
-4. **Long hand-written prompts** — detailed instructions re-explained across sessions → skill with the instructions baked in.
-5. **Re-done work** — the same task solved in two sessions → memory or reference doc gap.
-6. **Prompt-quality anti-patterns** — vague asks that led to long clarification loops → suggest a sharper template.
+1. **Repeated prompts**: same request typed ≥3 times (exact or paraphrased) → skill or slash-command candidate.
+2. **Corrections**: ledger rows plus verified opener rows → a missing standing rule (CLAUDE.md or memory). Recurring corrections outrank one-offs.
+3. **Skill usage**: a skill with zero loads whose keyword gaps are real is a pointer problem (sharpen its description or add a rule that names it); a skill loaded only by the assistant that the user keeps describing by hand ("create atomic commits and PR") wants a rules-engine trigger; a mid-sentence `/x` mention with nothing loaded after it is a `skill-mention` miss.
+4. **Long hand-written prompts**: detailed instructions re-explained across sessions → skill with the instructions baked in.
+5. **Re-done work**: the same task solved in two sessions → memory or reference doc gap.
+6. **Prompt-quality anti-patterns**: vague asks that led to long clarification loops → suggest a sharper template.
 
-Record every finding; filter at the report step, not during the scan. Per cluster, weigh recurrence against build cost — a 2× annoyance doesn't earn a skill; a 10× one does. Check the previous `retro-notes.md` in the cwd: a finding proposed there and never applied is reported again, marked as a repeat.
+Record every finding; filter at the report step, not during the scan. Per cluster, weigh recurrence against build cost: a 2× annoyance doesn't earn a skill; a 10× one does. Check the previous `retro-notes.md` in the cwd: a finding proposed there and never applied is reported again, marked as a repeat.
 
 ## 4. Report & apply
 
-Present a short table: finding, evidence (count + example prompt), proposed fix, destination (new skill / instructions file / memory note). Write the ranked findings with evidence to `retro-notes.md` in the cwd (look at the existing one first; it records the last retro's proposals). Then ask which to apply — writes to the global instructions file, the skills dir, or memory are user-visible config changes, so confirm before writing. Apply the approved ones:
+Present a short table: finding, evidence (count + example prompt), proposed fix, destination (new skill / instructions file / memory note). Write the ranked findings with evidence to `retro-notes.md` in the cwd (look at the existing one first; it records the last retro's proposals). Then ask which to apply. Writes to the global instructions file, the skills dir, or memory are user-visible config changes, so confirm before writing. Apply the approved ones:
 
 Harness paths: Claude Code uses `~/.claude/CLAUDE.md` and `~/.claude/skills/`; Codex uses `~/.codex/AGENTS.md` and `~/.agents/skills/`.
 
-- **Skill**: write it with **`writing-for-agents`** (always present — it ships in this repo); `skill-creator:skill-creator` is the richer alternative when that plugin is installed. Project-local unless the pattern spans projects → the global skills dir.
+- **Skill**: write it with **`writing-for-agents`** (always present, since it ships in this repo); `skill-creator:skill-creator` is the richer alternative when that plugin is installed. Project-local unless the pattern spans projects → the global skills dir.
 - **Rule**: a rules-engine rule when the trigger is a prompt or tool pattern (it fires without spending context); otherwise append to the matching section of the global instructions file (or the project's own if project-specific).
 - **Memory**: follow the harness's active memory instructions; do not edit the memory registry directly.
 
