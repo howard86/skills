@@ -27,19 +27,13 @@ The script runs chat-history's `chatlog prompts` (the transcript parser, guarded
 
 **Push-back ledger**: the rules engine appends a row to `~/.claude/rules-engine-state/audit.jsonl` for every prompt that opens as a correction (`pushback`, `pushback-undo`, rows since 2026-09-18) and for every turn Claude opened by conceding (`pushback-conceded`). A concession row is the higher-value find: its prompt usually did not read as a correction. `pushback-undo` is the noisier tier (about 40% genuine). Zero rows over a short window is normal; the script's correction-opener list (a wider regex) is the fallback. The ledger keeps the newest half of a 5 MB cap (about 38 days), so longer windows rely on the opener list. A `cwd` recurring across sessions is a standing-rule gap, not a one-off.
 
-## 2. Verify with one subagent
+## 2. Verify with parallel workers
 
-Every candidate whose cause lives in a transcript (why a nudge, what a correction corrected, whether a gap was real) goes to a single general-purpose subagent so the transcripts never enter this context. Call the Skill tool with `subagent-routing` first, then spawn one agent (the routing reference's reader-tier model) with this brief:
+Every candidate whose cause lives in a transcript (why a nudge, what a correction corrected, whether a gap was real, whether a repeat was re-done work) is answered by a worker, never by a `show` at root: one verification is 8 to 13 transcript reads of 20 to 90 KB each, and the retro needs one line per item back. The buckets are independent, so they run at once.
 
-- Goal: return one line per item, `verdict: evidence (sid)`, nothing else.
-- Tools: `bun ~/.claude/skills/chat-history/scripts/chatlog.ts show <sid> --grep <re> [--tools]` for context around a prompt; `chatlog search <query> --days N` for re-done work. Never dump a whole transcript.
-- Items, pasted from `retro-scan.md`:
-  - each nudge session: what preceded the `resume`/`continue` (`API Error: 529`, a spend or usage limit, sleep, or a genuine mid-task stop; only the last is friction);
-  - each correction: what the previous turn did, and whether a CLAUDE.md line, rule, or memory already covers it (name it);
-  - each keyword→skill gap, up to the cap: would the skill have applied, or was the keyword incidental;
-  - re-done work: for each repeated-prompt cluster, `search` its key terms and say whether two sessions solved the same task.
+Call the Skill tool with `subagent-routing`, then spawn one general-purpose worker per brief file in a single message, nameless, with an explicit `model: sonnet` (the worker judges, not just extracts), and the prompt `Read and follow <absolute path to brief-<bucket>.md>`. The brief already carries the role, the tools, the items, and the deliverable: each worker writes `verdicts-<bucket>.md` beside its brief and replies with the count and the path. Five briefs is the harness fan-out gate; a sixth and beyond run after the first batch reports.
 
-Fan out more than one agent only when the window exceeds 90 days or spans more than three project groups; then one agent per group, same brief.
+While the workers run, do the root work that needs no verdicts: read the previous `retro-notes.md` in the cwd (proposals never applied are reported again as repeats), and read `scan.md`'s skill table and long-prompt list. When every worker has reported, `cat $R/verdicts-*.md`; a worker's line is evidence to carry forward with its sid, and a transcript is opened at root only to settle a verdict that contradicts the scan.
 
 ## 3. Analyze
 
@@ -52,16 +46,18 @@ With the scan and the verdicts, look for, in priority order:
 5. **Re-done work**: the same task solved in two sessions → memory or reference doc gap.
 6. **Prompt-quality anti-patterns**: vague asks that led to long clarification loops → suggest a sharper template.
 
-Record every finding; filter at the report step, not during the scan. Per cluster, weigh recurrence against build cost: a 2× annoyance doesn't earn a skill; a 10× one does. Check the previous `retro-notes.md` in the cwd: a finding proposed there and never applied is reported again, marked as a repeat.
+Record every finding; filter at the report step, not during the scan. Per cluster, weigh recurrence against build cost: a 2× annoyance doesn't earn a skill; a 10× one does. A finding the previous `retro-notes.md` proposed and nobody applied is reported again, marked as a repeat.
 
 ## 4. Report & apply
 
-Present a short table: finding, evidence (count + example prompt), proposed fix, destination (new skill / instructions file / memory note). Write the ranked findings with evidence to `retro-notes.md` in the cwd (look at the existing one first; it records the last retro's proposals). Then ask which to apply. Writes to the global instructions file, the skills dir, or memory are user-visible config changes, so confirm before writing. Apply the approved ones:
+Present a short table: finding, evidence (count + example prompt), proposed fix, destination (new skill / instructions file / memory note). Write the ranked findings with evidence to `retro-notes.md` in the cwd (look at the existing one first; it records the last retro's proposals, and a plain overwrite loses them silently). Then ask which to apply. Writes to the global instructions file, the skills dir, or memory are user-visible config changes, so confirm before writing. Apply the approved ones:
 
 Harness paths: Claude Code uses `~/.claude/CLAUDE.md` and `~/.claude/skills/`; Codex uses `~/.codex/AGENTS.md` and `~/.agents/skills/`.
 
 - **Skill**: write it with **`writing-for-agents`** (always present, since it ships in this repo); `skill-creator:skill-creator` is the richer alternative when that plugin is installed. Project-local unless the pattern spans projects → the global skills dir.
 - **Rule**: a rules-engine rule when the trigger is a prompt or tool pattern (it fires without spending context); otherwise append to the matching section of the global instructions file (or the project's own if project-specific).
 - **Memory**: follow the harness's active memory instructions; do not edit the memory registry directly.
+
+An approved list usually lands in two to four repos (skills, rules engine, a project's own config, memory). The root applies memory and single-file edits itself. Everything else goes through **`implement-with-subagent`**, one write-enabled worker per repo, each briefed with the finding, the approved fix, and the destination file, running at once because each repo's index has one owner. Workers never commit; when the user asks for commits, hand the whole set to **`commit-with-subagent`**. Verify each worker's diff against the finding before reporting it applied.
 
 Finish with a one-line delta summary: what was created/changed.
