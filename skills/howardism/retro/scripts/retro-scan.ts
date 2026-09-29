@@ -5,7 +5,7 @@
 //
 //   bun retro-scan.ts [--days N] [--project sub] [--prompts file] [--cap N] [--briefs dir] [--per-brief N] [--no-jev] [--selfcheck]
 //
-// `--prompts file` reuses a saved `chatlog prompts --width 0` dump instead of rescanning.
+// `--prompts file` reuses a saved `chatlog prompts --include-agents --width 0` dump instead of rescanning.
 // `--briefs dir` also writes one worker brief per non-empty verification bucket
 // (brief-nudges.md, brief-corrections.md, brief-gaps.md, brief-repeats.md): the same items the
 // report lists, framed as questions a read-only subagent answers into dir/verdicts-<bucket>.md.
@@ -15,7 +15,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
-type Row = { ts: string; project: string; sid: string; text: string };
+type Row = { ts: string; project: string; sid: string; text: string; agent?: boolean };
 
 // --- noise ------------------------------------------------------------------
 // Harness rows the chatlog dump still carries. Prefix match on the first 200 chars.
@@ -44,8 +44,8 @@ const CORRECTION_RE = /^\s*(no|nope|don'?t|dont|correction|actually|i mean|inste
 // marker for that skill appears in the same session.
 const SKILL_KEYWORDS: Record<string, RegExp> = {
   "rebase-babysit": /\b(rebase|babysit|rescue (the|this) pr|watch ci|stale pr)\b/i,
-  "commit-with-subagent": /\b(atomic commits?|create (a |another )?pr|open (a )?pr|draft pr|\bcommit)\b/i,
-  "implement-with-subagent": /\b(implement|subagent|sub-agent|delegate)\b/i,
+  "commit-with-subagent": /\b(atomic commits?|create (a |another )?pr|create (the |these |atomic )?commits|open (a )?pr|draft pr|\bcommit)\b/i,
+  "implement-with-subagent": /\b(subagent|sub-agent|delegate|with (sub-?)?agents)\b/i,
   "perf-": /\b(perf|performance|benchmark|bench|latency|hot ?path|faster|slow|alloc)\b/i,
   "chat-history": /\b(last time|did we|previous session|earlier session|what did (i|we)|chat-history)\b/i,
   "disk-cleanup": /\b(disk|free space|clean ?up large|stale worktrees)\b/i,
@@ -199,10 +199,10 @@ function findChatlog(): string {
 
 export function parsePrompts(dump: string): Row[] {
   const rows: Row[] = [];
-  const head = /^\[(\S+) (\S+) (\S+)\] (.*)$/;
+  const head = /^\[(\S+) (\S+) (\S+)( agent)?\] (.*)$/;
   for (const line of dump.split("\n")) {
     const m = head.exec(line);
-    if (m) rows.push({ ts: m[1], project: m[2], sid: m[3], text: m[4] });
+    if (m) rows.push({ ts: m[1], project: m[2], sid: m[3], text: m[5], ...(m[4] ? { agent: true } : {}) });
     else if (rows.length && line) rows[rows.length - 1].text += "\n" + line;
   }
   return rows;
@@ -276,10 +276,13 @@ function harnessProjectsOf(rows: Row[]): Set<string> {
 // The rows report() treats as hand-typed: the set Jev classifies.
 export function handRows(rows: Row[]): Row[] {
   const hp = harnessProjectsOf(rows);
-  return rows.filter((r) => !hp.has(r.project) && classify(r.text) === "hand");
+  return rows.filter((r) => !r.agent && !hp.has(r.project) && classify(r.text) === "hand");
 }
 
-export function report(rows: Row[], days: number, cap: number, ledger: string, jev?: JevRun): { text: string; briefs: Record<Bucket, string[]> } {
+export function report(allRows: Row[], days: number, cap: number, ledger: string, jev?: JevRun): { text: string; briefs: Record<Bucket, string[]> } {
+  // Worker rows (subagent transcripts) feed only the skill table's `worker` column.
+  const rows = allRows.filter((r) => !r.agent);
+  const workerLoads = allRows.filter((r) => r.agent && classify(r.text) === "loaded-skill");
   const out: string[] = [];
   const briefs: Record<Bucket, string[]> = { nudges: [], corrections: [], gaps: [], repeats: [] };
   const harnessProjects = harnessProjectsOf(rows);
@@ -336,19 +339,30 @@ export function report(rows: Row[], days: number, cap: number, ledger: string, j
 
   // Skills
   out.push("\n## Skill usage (typed `/x` vs assistant-loaded)");
-  const bySkill = new Map<string, { typed: number; loaded: number; projects: Set<string>; first: string; last: string }>();
+  const bySkill = new Map<string, { typed: number; loaded: number; worker: number; projects: Set<string>; first: string; last: string }>();
   for (const r of [...typed, ...loaded]) {
     const n = skillOf(r.text);
-    const e = bySkill.get(n) ?? { typed: 0, loaded: 0, projects: new Set(), first: r.ts, last: r.ts };
+    const e = bySkill.get(n) ?? { typed: 0, loaded: 0, worker: 0, projects: new Set(), first: r.ts, last: r.ts };
     if (classify(r.text) === "typed-skill") e.typed++; else e.loaded++;
     e.projects.add(r.project);
     if (r.ts < e.first) e.first = r.ts;
     if (r.ts > e.last) e.last = r.ts;
     bySkill.set(n, e);
   }
-  out.push("| skill | typed | loaded | projects | first | last |\n|---|---|---|---|---|---|");
-  for (const [n, e] of [...bySkill].sort((a, b) => b[1].typed + b[1].loaded - a[1].typed - a[1].loaded))
-    out.push(`| ${n} | ${e.typed} | ${e.loaded} | ${e.projects.size} | ${e.first.slice(0, 10)} | ${e.last.slice(0, 10)} |`);
+  for (const r of workerLoads) {
+    if (harnessProjects.has(r.project)) continue;
+    const n = skillOf(r.text);
+    const e = bySkill.get(n) ?? { typed: 0, loaded: 0, worker: 0, projects: new Set(), first: r.ts, last: r.ts };
+    e.worker++;
+    e.projects.add(r.project);
+    if (r.ts < e.first) e.first = r.ts;
+    if (r.ts > e.last) e.last = r.ts;
+    bySkill.set(n, e);
+  }
+  out.push("| skill | typed | loaded | worker | projects | first | last |\n|---|---|---|---|---|---|---|");
+  const total = (e: { typed: number; loaded: number; worker: number }) => e.typed + e.loaded + e.worker;
+  for (const [n, e] of [...bySkill].sort((a, b) => total(b[1]) - total(a[1])))
+    out.push(`| ${n} | ${e.typed} | ${e.loaded} | ${e.worker} | ${e.projects.size} | ${e.first.slice(0, 10)} | ${e.last.slice(0, 10)} |`);
   const mentions = hand.filter((r) => /(?<![\w/`.~])\/[a-z][a-z0-9-]{2,}\b(?![/.-])/.test(r.text));
   out.push(`\nMid-sentence /skill mentions: ${mentions.length}`);
   for (const r of mentions.slice(0, cap)) {
@@ -477,12 +491,14 @@ if (import.meta.main) {
       "[2026-09-01T00:07 -Users-x-proj s1] Review recent sessions for workflow friction and encode the fixes",
       "continuation line of the body",
     ].join("\n");
+    const agentRow: Row = { ts: "2026-09-01T00:08", project: "-Users-x-proj", sid: "a1", text: "[skill:perf-algorithms]", agent: true };
     const rows = parsePrompts(sample);
     console.assert(rows.length === 9 && rows[8].text.includes("\ncontinuation"), "parsePrompts continuation");
     const kinds = rows.map((r) => classify(r.text));
     console.assert(JSON.stringify(kinds) === JSON.stringify(["hand", "typed-skill", "typed-skill", "loaded-skill", "harness", "hand", "hand", "hand", "body"]), `classify ${kinds}`);
-    const { text: rep, briefs } = report(rows, 30, 10, "/nonexistent");
-    console.assert(rep.includes("| retro | 1 | 0 |") && rep.includes("| lint | 1 | 0 |") && rep.includes("| writing-for-agents | 0 | 1 |"), "skill table");
+    const { text: rep, briefs } = report([...rows, agentRow], 30, 10, "/nonexistent");
+    console.assert(rep.includes("| retro | 1 | 0 | 0 |") && rep.includes("| lint | 1 | 0 | 0 |") && rep.includes("| writing-for-agents | 0 | 1 | 0 |") && rep.includes("| perf-algorithms | 0 | 0 | 1 | 1 |") && rep.includes("9 rows"), "skill table");
+    console.assert(SKILL_KEYWORDS["commit-with-subagent"].test("create the commits") && !SKILL_KEYWORDS["implement-with-subagent"].test("implement the fix") && SKILL_KEYWORDS["implement-with-subagent"].test("do it with subagents"), "keyword patterns");
     console.assert(rep.includes("commit-with-subagent: 1 gap / 1 hit"), "gap");
     console.assert(rep.includes("Correction openers: 1") && rep.includes("Nudges: 1"), "corrections/nudges");
     console.assert(briefs.gaps.length === 1 && briefs.gaps[0].startsWith("- [commit-with-subagent] ") && briefs.gaps[0].includes(" s1 "), `briefs.gaps ${briefs.gaps}`);
@@ -521,7 +537,7 @@ if (import.meta.main) {
     const file = arg("prompts", "");
     if (file) dump = readFileSync(file, "utf8");
     else {
-      const cmd = ["bun", findChatlog(), "prompts", "--days", String(days), "--width", "0"];
+      const cmd = ["bun", findChatlog(), "prompts", "--days", String(days), "--include-agents", "--width", "0"];
       const project = arg("project", "");
       if (project) cmd.push("--project", project);
       const proc = Bun.spawnSync(cmd, { stdout: "pipe", stderr: "inherit" });
