@@ -1,3 +1,132 @@
+# Retro: 2026-08-25 to 2026-09-24
+
+Scope: 30-day scan by `retro-scan.ts` (1,336 rows, 737 hand-typed after the noise filter),
+five read-only verification workers (nudges 12, corrections 18, keyword gaps 47, repeats 20),
+and the rules-engine audit log for rule firing dates. Every session id below is a worker
+verdict carried forward; none was re-read at root.
+
+## Findings, ranked
+
+### 1. "babysit" typed without a slash never loads `rebase-babysit`
+
+13 gap prompts against 13 hits. Five of six sampled sessions ran the skill's exact workflow by
+hand: manual `gh pr` polling plus an armed watch loop (28c10bdc, 1df359a0, 66cf8bc9, 443017d9,
+f131519d; d42488d3 was editing the skill itself). The `skill-mention` rule only fires on a
+slash, and the skill description already lists these phrases, so the description is not the
+lever. Fix: a `UserPromptSubmit` rule keyed on a leading `babysit` (unless the prompt starts
+with `/`) that says to call the Skill tool with `rebase-babysit`. Destination: rules engine.
+
+### 2. "research ..." typed 24 times, `research` skill loaded once
+
+15 of 16 sampled sessions did what the skill specifies (primary sources via context7 or the
+repo's own code, findings written to a Markdown file or artifact) inline at root instead of
+through the skill's background worker (73c2a7cc, 8d194c25, 1095b6c1, f8aedba5, 9159f692,
+1f9afdce). The skill dates from 2026-07-01, so every gap postdates it. Two readings: the skill
+is wanted and needs a trigger, or inline research is the preferred behaviour and the skill's
+description should say when it does not apply. Fix if the first: a `UserPromptSubmit` rule
+keyed on a leading `research` naming the skill. Destination: rules engine.
+
+### 3. SKILL.md and CLAUDE.md edited by hand without `writing-for-agents`
+
+8 gaps; 6 of 7 sampled were genuine skill or instruction-file authoring done without loading
+it: a CLAUDE.md section appended by heredoc (698b1953), a global CLAUDE.md rewrite (d55894c3),
+direct edits to chat-history, retro and refine-skill SKILL.md (9103b0e6, 5d786485), a
+frontmatter invocation diagnosis (0f859cd4). The skill loads 19 times model-side elsewhere,
+so the miss is when the edit is incidental to a larger task. Fix: a `PreToolUse` rule on
+Edit/Write/Bash whose target path matches `SKILL.md`, `CLAUDE.md` or `AGENTS.md`, `once:
+session`, injecting "call the Skill tool with `writing-for-agents` before the next edit".
+Per the 2026-09-09 experiment an inject lands after the matched call, so the first edit
+escapes; a deny would cost a turn. Destination: rules engine.
+
+### 4. `perf-evidence` fires ~30 times a month but names no skill
+
+61 perf gaps; 5 of 7 sampled were hot-path, benchmark or memory-layout work matching
+perf-algorithms, perf-measurement or perf-overhead (e30565ee, 478c68fc, da321de5 twice);
+the misses were the skill family's own authoring session (78335b17) and an order-bench API
+compatibility run (d8674be5). `perf-measurement` loaded 8 times. Fix: one sentence in
+`perf-evidence.md` pointing at the Skill tool with `perf-measurement` for the measurement
+plan (and the perf-* family for the change). Destination: rules engine.
+
+### 5. `pushback` tiers miss "stop"
+
+"stop ingest" (cd2243b5) matched neither `pushback` nor `pushback-undo`. Fix: add `stop` to
+the `pushback-undo` alternation. Destination: rules engine. The ledger is otherwise empty
+because the rules landed 2026-09-18 and no correction opener was typed after that date.
+
+### 6. Attribution correction repeated three times before its memory existed
+
+"remove claude code attributions" was typed twice on 2026-09-14 (2da15f9e) and recurred on
+2026-09-16 across 8 commits and 7 PR footers before `no-commit-attribution.md` was written in
+the trading-framework project memory. The harness now appends a `Claude-Session:` line to
+every commit in every repo. If the preference is global, it belongs as one line in
+`~/.claude/CLAUDE.md`; a project memory only protects one repo. Destination: global
+instructions file, pending the user's answer on scope.
+
+### 7. `retro-scan` keyword map: `stale` is too broad for `agent-status`
+
+18 agent-status gaps; 5 of 6 sampled were "stale data", "stale records", "stale worktrees" or
+Next.js ISR staleness (649e52cc, a9915154, 73c2a7cc, 0f0b112c, 8afceaa5). The one real match
+("verify states", 882b57b0) predates the skill (created 2026-09-16), as do both disk-cleanup
+gaps. Fix: narrow the keyword to the skill's own phrases ("seems stale", "stuck", "verify
+states"). Destination: this repo, `retro-scan.ts`.
+
+### 8. Repeat from the 2026-09-09 retro: `in-progress/` still holds nine unused skills
+
+claude-handoff, implement-spec, loop-me, pr, retro, setup-ts-deep-modules, writing-beats,
+writing-fragments, writing-shape. All `disable-model-invocation`, none typed in this window
+(the `retro` count is `howardism/retro`; the linker skips the bucket). The previous retro
+named six as `deprecated/` candidates and nobody moved them. Destination: this repo.
+
+## Applied 2026-09-24
+
+Findings 1, 2, 3, 4, 5, 7 and 8 were approved; 6 was answered as trading-framework only, so
+the project memory stands and nothing global changed.
+
+| Where | Change |
+|---|---|
+| rules engine | `babysit-skill.md` (new): leading `babysit` calls the Skill tool with `rebase-babysit` |
+| rules engine | `research-skill.md` (new): leading `research` calls the Skill tool with `research`, with an inline escape for quick lookups |
+| rules engine | `agent-docs-skill.md` (new, Bash-only): a shell write into SKILL.md, CLAUDE.md or AGENTS.md injects a once-per-session pointer to `writing-for-agents` |
+| rules engine | `perf-evidence.md`: names `perf-measurement` and the perf-* family |
+| rules engine | `pushback-undo.md`: `stop` added to the trigger alternation |
+| rules engine | `CLAUDE.md` hook mechanics: the PreToolUse match-subject limitation below |
+| this repo | `retro-scan.ts`: agent-status keyword `stale` narrowed to `seems stale` |
+| this repo | six `in-progress/` skills moved to `deprecated/`, both bucket READMEs updated, `codebase-design.md` cross-reference fixed, changeset added |
+
+`bun rules-engine/selfcheck.ts` passes; the corpus has no cases for the new ids, so the pass
+proves parse and no regression, not firing. The scan script was smoke-run over a 3-day window.
+
+### Found while applying
+
+Finding 3 landed narrower than proposed. A `PreToolUse` `match` is tested only against
+`tool_input.command`; `Edit` and `Write` carry no `command`, so their subject is the empty
+string and no regex can fire on a file path. The rule is honest about that (`tool: ^Bash$`)
+and catches heredoc, redirect, `sed -i`, `tee`, `cp`, `mv` and `git apply` writes only. Of the
+six verified gap sessions, one was a heredoc; the Edit-tool cases stay uncovered until
+`engine.ts` threads `file_path` into the match subject for non-Bash tools. Recorded in the
+rules-engine repo's `CLAUDE.md`.
+
+## Recorded, no action
+
+- **Commit and apply phrases are the workflow, not redone work.** All 20 repeat clusters
+  verified as distinct tasks across repos; two were parallel dispatch minutes apart (items 13,
+  19) and one a single-session bench retry loop (e4fc4553). "create atomic commits and PR" and
+  its variants total about 26 prompts; `commit-contract` landed 2026-09-23 and has fired six
+  times. Baseline for the next retro: `commit-with-subagent` 15 loads against 69 keyword gaps
+  this window. `workflow-apply` fires about 90 times a month and needs nothing.
+- **Nudges are not friction.** 10 of 12 sampled `continue`/`resume` sessions followed a 529,
+  401 or ENOTFOUND error, a spend limit, a machine sleep, or an immediate re-run of a finished
+  report. The two genuine stops: a disk-full session (12c68567; `disk-cleanup` now exists) and
+  a turn that ended while a CI babysit agent was still running (ace22bf3).
+- **One-off corrections with no rule earned**: stale claude-mem references after an uninstall
+  (18a0d077), DB over seed fixtures (0f0b112c), a stray `./~` directory from an unexpanded
+  literal tilde (c24e161a), prefer opening a PR over sending a message (1d4c8837). Each once.
+- **Long prompts** (13): pasted logs, tables, terminal output, one pasted diagram style guide.
+  No re-explained instruction set.
+- **Previous retro's proposals**: H1, H2 (narrowed), H3 (`subagent-worker-contract`, 89
+  firings), S1', S2, S3, S4, the skill-usage table and the noise-filter ordering all landed.
+  `subagent-routing` went from 3 loads to 62.
+
 # Retro: skills usage, 2026-08-10 to 2026-09-09
 
 Scope: 30-day prompt scan (2,184 rows, 1,066 after noise filter) plus an all-time
