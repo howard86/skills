@@ -1,3 +1,146 @@
+# Retro: 2026-08-30 to 2026-09-29, with a skill-usage focus
+
+Scope: 30-day scan by `retro-scan.ts` (1,141 rows, 612 hand-typed after the noise filter; Jev
+classified all 612 for $0.02), eight read-only verification workers (nudges 20, corrections 30,
+keyword gaps 86, repeats 18), the rules-engine audit log, and a root check of where worker
+transcripts land. Twenty-five of the thirty days overlap the 2026-09-24 retro, applied five days
+ago, so most of what the scan surfaces is either already fixed or too recent to have been
+exercised. Session ids are worker verdicts carried forward unless marked "root".
+
+## Findings, ranked
+
+### 1. The turn ends while a spawned worker is still running
+
+The only genuine friction in 20 nudges. Session 03af859f twice: a 1h idle after the turn ended
+with the bench-loop worker still running, then a turn that closed with "Next: the rebase"
+instead of rebasing. Session 41bde636: "wait for luna", turn ended, the user came back 75
+minutes later to a finished worker nobody had read. The 2026-09-24 retro found the same shape
+(ace22bf3, a CI babysit agent left running). Four instances across two retros, all with a
+delegated worker in flight; no API error, limit, or sleep before any of them. The
+rules engine already sees `SubagentStart` and `SubagentStop` (it logs both) but keeps no
+per-session count, and its two Stop rules gate on uncommitted work and concessions only.
+Fix: track starts minus stops in session state and add a `stop-live-workers` Stop rule
+that fires when the count is positive: wait for the result or state why the turn ends with
+work in flight. Destination: rules engine (`engine.ts` plus one rule file).
+
+### 2. The retro's skill table counts root loads only, so worker-side skills read as unused
+
+`perf-algorithms`, `perf-api` and `perf-overhead` show 0 loads for the window while
+`perf-review` was typed 11 times and briefs each angle worker to load its member skill.
+Root check of 20d1a106 (2026-09-22): its four named angle workers each loaded their member
+skill plus `perf-measurement`, but a named worker's transcript is its own session file
+beside the parent, and `chatlog prompts` without `--include-agents` drops those rows, so the
+table never sees them. The same blind spot hides `subagent-routing` and `commit-with-subagent`
+loads inside implementer workers (ee81e6d0, 34d6430f). Fix: `retro-scan.ts` tallies skill
+banners in agent sessions into a separate `worker` column, and the retro skill's step 1 says
+the `loaded` column is root-only. Destination: this repo.
+
+### 3. Two keyword patterns in the scan are miscalibrated against Jev and the verdicts
+
+`implement-with-subagent`: regex 48 gaps, Jev 4. Every verified "applies" was an explicit
+"with sub-agents" prompt (72b7340f, 78802025, c4047cb9, f1a6b919, e39c09a0); the bare
+`implement` keyword flags each "implement all", which `workflow-apply` already owns.
+`commit-with-subagent`: regex missed the three cleanest positives, all "create commits ..."
+(c0b4d13e, 6133fa2b, dffce028), which Jev caught at 0.94 to 0.99. Fix: drop bare `implement`
+from the first pattern and add `create commits` to the second. Destination: this repo,
+`retro-scan.ts`.
+
+### 4. Fixes shipped by the last two retros have had no trigger yet (baseline, no action)
+
+- `babysit-skill` and `research-skill` (rules, 2026-09-24): zero firings. No prompt has opened
+  with `babysit` or `research` since they landed (root: audit log and a 6-day prompt grep).
+- `agent-status` and `disk-cleanup` (skills, 2026-09-23): zero loads. All 13 verified matching
+  prompts date 2026-09-02 to 2026-09-14 (882b57b0, cd2243b5, e046062b, 2faaeeca, 41bde636,
+  8afceaa5, 11d0bc7a, 7a41363c).
+- `agent-docs-skill` (rule, 2026-09-24): fired once, 2026-09-29, in a worker writing a new
+  SKILL.md by heredoc; that session then loaded `writing-for-agents` (root: 85540545). One
+  for one.
+- `commit-contract` (rule, 2026-09-23): `commit-with-subagent` loaded 12 times in the five
+  days since the last retro against 7 in the 25 days before it (root: banner count).
+
+### 5. Commit attribution: repeat of the 2026-09-24 finding 6, already decided
+
+The two standing-rule-gap verdicts in 30 corrections are both 2da15f9e (2026-09-14, "remove
+attribution", twice). The previous retro asked and the answer was trading-framework only, so
+the project memory stands. Reported once here as the repeat it is; not re-asked.
+
+### 6. `opencli-autofix` Step 6 still says to file an upstream issue
+
+Memory `feedback_no_upstream_opencli_issues.md` says never to (356fe9b6, 2026-09-10). The skill
+text disagrees with the memory. It is a third-party skill, so editing it does not stick; the
+memory is the durable fix and it has held (no later occurrence). Recorded, no action.
+
+## Applied 2026-09-29
+
+Findings 1, 2 and 3 plus the `synced` audit exclusion were approved; 4, 5 and 6 need nothing.
+Two Sonnet workers, one per repo, both in place and uncommitted.
+
+| Where | Change |
+|---|---|
+| rules engine | `stop-live-workers.md` (new, code-backed Stop rule) and `engine.ts`: session state tracks `liveAgents` from `SubagentStart` to `SubagentStop`; a Stop with a live worker blocks once per session, guarded by `stop_hook_active`. Verified end to end with isolated state: block on live worker, no block after the worker stopped, no block on the retry, no block a second time. `selfcheck.ts` passes. All 400 recorded `subagent-start` rows carry an agent id, so native workers are always tracked; a worker whose stop never fires (killed, crashed) leaves a stale id and can earn one spurious block, and Agent Bridge workers are invisible to it. |
+| this repo | `retro-scan.ts`: a second `chatlog prompts --include-agents` run supplies the agent rows (chatlog marks none, so the multiset difference is the signal); they feed only a new `worker` column. Same 8-day window against the old script: every section byte-identical except the table (four perf rows appear: perf-memory 5, perf-algorithms 4, perf-api 4, perf-overhead 4; perf-measurement worker 17) and the gap section moved by the pattern change (implement-with-subagent 8/16 to 3/3, commit-with-subagent 14/26 to 15/28). Scan time 1s to 3.4s. |
+| this repo | `retro-scan.ts` patterns: bare `implement` dropped, `create commits` added; self-check covers both. |
+| this repo | `CLAUDE.md` audit loop now walks `~/.claude/skills` too and skips `synced`; `retro/SKILL.md` names the three columns; changeset `retro-scan-worker-loads.md`. |
+
+Left alone on purpose: `retro-scan.ts` has three em-dashes in output strings (lines 320, 347, 467) that predate this change; the repo rule covers prose and comments and the worker did not touch adjacent code. `selfcheck.ts` in the rules engine has no Stop-after-SubagentStart case because its corpus is command-only; the manual run above is the only coverage.
+
+### Caveat follow-ups, applied 2026-09-29
+
+All six proposals from the caveat review were approved and landed, two Sonnet workers again, uncommitted.
+
+| Where | Change |
+|---|---|
+| rules engine | Kill removes the id: `PreToolUse` on `TaskStop` (`task_id`, deprecated `shell_id`; confirmed against the live schema) and on the bridge `StopAgent` (handle or alias). `SessionEnd` already unlinks the state file, so nothing was added there. |
+| rules engine | Age in the reason: `liveSince` per id; the block lists `id (Nm)` or `XhYm`. |
+| rules engine | Agent Bridge: a background bridge `Agent` launch is tracked as `bridge:<handle>` with its `name` alias; removed by `StopAgent`, an `AgentOutput` or `ListAgent` response with a terminal status (`completed`, `failed`, `killed`). Foreground launches are never tracked. Matching runs on the stringified `tool_response`, tolerant of escaped quotes. |
+| rules engine | `selfcheck.ts`: ten `live-workers` cases (native block, stop, `stop_hook_active`, once-only, TaskStop, bridge block, StopAgent by alias, ListAgent terminal, foreground untracked, AgentOutput terminal). One type error the worker left (`string \| undefined` from `matchAll`) fixed at root; `tsc --noEmit -p .` is clean. |
+| this repo | `chatlog prompts --include-agents` prints agent rows with a fourth header token, `agent` (`formatPromptRow`, pure, self-checked). `retro-scan.ts` reads the token, spawns chatlog once, and drops `agentRowsOf`; `--prompts <file>` now yields worker counts when the dump was taken with `--include-agents --width 0`. Same 8-day window: 0.88s to 0.52s, output identical apart from the intended cells. |
+| this repo | Worker rows feed `projects`, `first`, `last` (perf rows 0 to 4 projects). |
+| this repo | Three em-dash output strings rewritten; `CLAUDE.md` rule now names string literals that print prose; `chat-history/SKILL.md` documents the `agent` token; changeset extended. |
+
+The rule fired on this very session while the second worker was running, naming the live agent id, and let the turn end once it was stated that a native Agent re-wakes the session. Still open by design: a bridge worker that finishes with no later poll stays listed until the once-per-session block; a saved dump taken without `--include-agents` reads `worker` as 0.
+
+## Skill usage, what the window shows
+
+- **The delegation trio is the workload.** `subagent-routing` 70 loads across 15 projects,
+  `implement-with-subagent` 23, `commit-with-subagent` 19; the renamed predecessors show 9 and
+  2 loads, all before the 2026-09-08 rename, and none since.
+- **User-typed skills**: `lint` 24 (a trading-framework command, not this repo), `perf-review`
+  11, `research-cycle` 10, `retro` 8, `rebase-babysit` 7 typed plus 2 model loads. Vault
+  commands (`ingest`, `compile`, `query`, `vault-retro`, `campaign`) show as typed-only because
+  they are read with `cat` and leave no marker.
+- **Never loaded at root this window** among promoted howardism skills: afk-issue-loop,
+  bun-workspace-quality, codex-fewer-permission-prompts, codex-refine-harness, find-skills,
+  migrate-to-shoehorn, refine-harness, refine-skill, refresh-harness-references,
+  setup-pre-commit, git-guardrails-claude-code. Same list the 2026-09-09 retro's finding 1
+  drew for the upstream `engineering/` set; nothing changed and nothing new to propose.
+- **Mid-sentence `/x` mentions**: 15, all commands or vault skills read with `cat`, none a
+  `skill-mention` miss. The rule has fired 9 times all-time.
+- **`~/.claude/skills/synced`** is the one non-symlink entry the CLAUDE.md audit loop flags. It
+  is a claude.ai sync bucket (`.bucket-<id>` marker, 2026-09-17), not a frozen skill copy. The
+  audit command reports it every run; it can be excluded there.
+
+## Recorded, no action
+
+- **Repeats are the workflow.** All 18 clusters verified as distinct tasks or workflow closers
+  ("apply all" 9, "create atomic commits and PR" 8, "commit" 4), except two 2× recurrences:
+  the wiki import into howardism-monorepo (24880534 2026-08-27, 66ca6d15 2026-09-16) and the
+  stale-worktree review (8afceaa5, 7a41363c; `disk-cleanup` now covers it). Twice does not
+  earn a skill. The `ssh company-ng` rows are pasted terminal output from one bench session
+  (e4fc4553), an automation echo.
+- **Nudges**: 4 spend-limit resets, 4 machine sleeps, 1 ENOTFOUND, 9 not nudges (menu picks,
+  handoff openers, a stray keystroke). The two genuine ones are finding 1.
+- **Corrections**: 30 verified; 14 were regex false positives on "remove", "discard", "stop"
+  or a first prompt after `/clear`; 8 covered by `fix-verify`, `git-add-all` (on 2026-09-14,
+  after its 09-02 trigger, and deliberately off in linked worktrees) or memory; 6
+  task-specific design steers. Jev caught 3 of 16 regex rows and missed the attribution one
+  (0.08), so for corrections the regex list stays the fallback the skill says it is.
+- **Jev calibration elsewhere**: nudges regex 19 / Jev 17 with 17 in common; perf gaps 7
+  applies of 12 verified, Jev's 16 closer than the regex 58; agent-status 10 applies of 13,
+  Jev caught 9. Jev is the better gap detector, the regex the better correction detector.
+- **Long prompts** (10): pasted logs, bench output, one diagram style guide injected by the
+  harness (a220a23f, a regex false positive on "agent"). No re-explained instruction set.
+
 # Retro: 2026-08-25 to 2026-09-24
 
 Scope: 30-day scan by `retro-scan.ts` (1,336 rows, 737 hand-typed after the noise filter),
