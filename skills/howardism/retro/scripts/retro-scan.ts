@@ -49,7 +49,7 @@ const SKILL_KEYWORDS: Record<string, RegExp> = {
   "perf-": /\b(perf|performance|benchmark|bench|latency|hot ?path|faster|slow|alloc)\b/i,
   "chat-history": /\b(last time|did we|previous session|earlier session|what did (i|we)|chat-history)\b/i,
   "disk-cleanup": /\b(disk|free space|clean ?up large|stale worktrees)\b/i,
-  "agent-status": /\b(stuck|stale|idle agents|still running|takes (this|so) long|verify states)\b/i,
+  "agent-status": /\b(stuck|seems stale|idle agents|still running|takes (this|so) long|verify states)\b/i,
   "research": /\bresearch\b/i,
   "writing-for-agents": /\b(skill|claude\.md|agents\.md|standing rule)\b/i,
   "resolving-merge-conflicts": /\bconflicts?\b/i,
