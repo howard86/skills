@@ -48,6 +48,7 @@
     "./skills/howardism/implement-with-subagent",
     "./skills/howardism/commit-with-subagent",
     "./skills/howardism/subagent-routing",
+    "./skills/howardism/jev-decisions",
     "./skills/howardism/blindspot",
     "./skills/howardism/chat-history",
     "./skills/howardism/rebase-babysit",

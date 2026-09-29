@@ -1,0 +1,5 @@
+interface:
+  display_name: "Jev Decisions"
+  short_description: "Cheap calibrated classification, routing, and scoring over text via TypeSafe Jev"
+policy:
+  allow_implicit_invocation: false
