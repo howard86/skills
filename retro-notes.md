@@ -100,6 +100,17 @@ All six proposals from the caveat review were approved and landed, two Sonnet wo
 
 The rule fired on this very session while the second worker was running, naming the live agent id, and let the turn end once it was stated that a native Agent re-wakes the session. Still open by design: a bridge worker that finishes with no later poll stays listed until the once-per-session block; a saved dump taken without `--include-agents` reads `worker` as 0.
 
+### Jev calibration follow-up, 2026-09-29
+
+Joining this retro's 86 gap verdicts to Jev's `wanted_skill` answers: at >= 0.8 Jev was right 28 of 32 times; at 0.5 to 0.8, 13 of 30; regex-only rows where Jev chose another skill or none were real 15 of 24. A second question set, one `noul` per skill, separated the items worse and used 1.3× the tokens, so the single `choice` stays (recorded in `jev-decisions/SKILL.md`). The misses came from context-free prompts ("babysit", "verify states") and from prompts asking for two jobs.
+
+| Where | Change |
+|---|---|
+| this repo | `retro-scan --briefs` writes `items.jsonl` (Jev probability and model for each item); `retro-calibrate.ts` joins it with the verdicts, stores labels under `$XDG_STATE_HOME/retro/`, and prints precision per band plus the lowest threshold that meets the target. |
+| this repo | Gap items Jev answers at >= 0.8 are settled, not sent to workers; every 5th one stays in the brief as an audit item. `--jev-act` and `--verify-all` override. On the same 30-day window, 26 of 91 gap items stayed out of the briefs. |
+| this repo | Prompts of 5 words or fewer reach Jev with `previous_reply` (`chatlog prompts --prev`): "verify states" went from missed to 0.75 for agent-status, and one "babysit" to 0.66 for rebase-babysit. |
+| rules engine | Jev check letting a Stop message that already answers `stop-commit` or `stop-live-workers` through without a block: designed, not applied. Auto mode denied the edit as self-modification. |
+
 ## Skill usage, what the window shows
 
 - **The delegation trio is the workload.** `subagent-routing` 70 loads across 15 projects,
