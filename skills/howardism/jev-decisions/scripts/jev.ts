@@ -8,10 +8,20 @@
 // added with `security add-generic-password -s typesafe.ai -a jev -U -w`. The key lives in a module
 // local and is never logged; do not print request headers or the client object.
 //
+// Usage log: every ask() call, success or failure, appends one row (state, questions, answers,
+// tokens, latency, caller) to a local SQLite file for later analysis of prompts and thresholds.
+// Path: JEV_USAGE_DB, else $XDG_STATE_HOME/jev/usage.sqlite (default ~/.local/state). JEV_USAGE_DB=off
+// disables it. Logging is fail-open: a locked or unwritable database never fails the call.
+//
 // CLI: `bun jev.ts models` lists the aliases the account can send;
-//      `bun jev.ts ask < request.json` posts a raw {state, questions[, model]} body and prints the answers.
+//      `bun jev.ts ask < request.json` posts a raw {state, questions[, model]} body and prints the answers;
+//      `bun jev.ts usage [days]` summarises the usage log per caller (default 30 days).
 
 import { $ } from "bun";
+import { Database } from "bun:sqlite";
+import { mkdirSync } from "node:fs";
+import { basename, dirname, join } from "node:path";
+import { homedir } from "node:os";
 
 export const BASE_URL = "https://api.typesafe.ai/v1";
 export const DEFAULT_MODEL = process.env.JEV_MODEL ?? "jev-latest";
@@ -71,8 +81,79 @@ export class JevError extends Error {
   }
 }
 
+// --- usage log --------------------------------------------------------------
+export const USAGE_DB =
+  process.env.JEV_USAGE_DB ?? join(process.env.XDG_STATE_HOME || join(homedir(), ".local", "state"), "jev", "usage.sqlite");
+let usageDb: Database | null | undefined;
+
+function openUsage(): Database | null {
+  if (usageDb !== undefined) return usageDb;
+  if (USAGE_DB === "off") return (usageDb = null);
+  try {
+    mkdirSync(dirname(USAGE_DB), { recursive: true });
+    const db = new Database(USAGE_DB, { create: true });
+    db.exec("PRAGMA busy_timeout = 1000");
+    db.exec("PRAGMA journal_mode = WAL");
+    db.exec(`CREATE TABLE IF NOT EXISTS calls (
+      id INTEGER PRIMARY KEY,
+      ts TEXT NOT NULL,
+      caller TEXT NOT NULL,
+      meta TEXT,
+      model_requested TEXT NOT NULL,
+      model TEXT,
+      ok INTEGER NOT NULL,
+      http_status INTEGER,
+      error TEXT,
+      latency_ms INTEGER NOT NULL,
+      input_tokens INTEGER,
+      output_tokens INTEGER,
+      state TEXT NOT NULL,
+      questions TEXT NOT NULL,
+      answers TEXT
+    )`);
+    db.exec("CREATE INDEX IF NOT EXISTS calls_caller_ts ON calls (caller, ts)");
+    return (usageDb = db);
+  } catch {
+    return (usageDb = null);
+  }
+}
+
+type UsageRow = {
+  ts: string;
+  caller: string;
+  meta: string | null;
+  model_requested: string;
+  model: string | null;
+  ok: number;
+  http_status: number | null;
+  error: string | null;
+  latency_ms: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  state: string;
+  questions: string;
+  answers: string | null;
+};
+
+function recordUsage(row: UsageRow): void {
+  try {
+    openUsage()
+      ?.query(
+        `INSERT INTO calls (ts, caller, meta, model_requested, model, ok, http_status, error, latency_ms,
+          input_tokens, output_tokens, state, questions, answers)
+         VALUES ($ts, $caller, $meta, $model_requested, $model, $ok, $http_status, $error, $latency_ms,
+          $input_tokens, $output_tokens, $state, $questions, $answers)`,
+      )
+      .run(Object.fromEntries(Object.entries(row).map(([k, v]) => [`$${k}`, v])));
+  } catch {
+    /* logging never fails the call */
+  }
+}
+
 // --- calls ------------------------------------------------------------------
-type AskOptions = { model?: string; retries?: number; signal?: AbortSignal };
+// caller names the consumer in the usage log (default: the entry script's file name);
+// meta is any JSON-able context worth keeping beside the call (session id, rule, item id).
+type AskOptions = { model?: string; retries?: number; signal?: AbortSignal; caller?: string; meta?: unknown };
 
 // Retries 429 and 5xx, honouring retry-after (seconds or HTTP date) like the official SDKs do.
 async function post(path: string, body: unknown, opts: AskOptions = {}): Promise<unknown> {
@@ -100,8 +181,64 @@ async function post(path: string, body: unknown, opts: AskOptions = {}): Promise
 
 export async function ask<Q extends Record<string, Question>>(state: Text, questions: Q, opts: AskOptions = {}): Promise<Response<Q>> {
   const t0 = performance.now();
-  const json = (await post("/systemone", { state, model: opts.model ?? DEFAULT_MODEL, questions }, opts)) as Omit<Response<Q>, "latency_ms">;
-  return { ...json, latency_ms: Math.round(performance.now() - t0) };
+  const model = opts.model ?? DEFAULT_MODEL;
+  const row = {
+    ts: new Date().toISOString(),
+    caller: opts.caller ?? basename(Bun.main),
+    meta: opts.meta === undefined ? null : JSON.stringify(opts.meta),
+    model_requested: model,
+    state: typeof state === "string" ? state : JSON.stringify(state),
+    questions: JSON.stringify(questions),
+  };
+  try {
+    const json = (await post("/systemone", { state, model, questions }, opts)) as Omit<Response<Q>, "latency_ms">;
+    const res = { ...json, latency_ms: Math.round(performance.now() - t0) };
+    recordUsage({
+      ...row,
+      model: res.model ?? null,
+      ok: 1,
+      http_status: 200,
+      error: null,
+      latency_ms: res.latency_ms,
+      input_tokens: res.usage?.input_tokens ?? null,
+      output_tokens: res.usage?.output_tokens ?? null,
+      answers: JSON.stringify(res.answers),
+    });
+    return res;
+  } catch (e) {
+    recordUsage({
+      ...row,
+      model: null,
+      ok: 0,
+      http_status: e instanceof JevError ? e.status : null,
+      error: (e instanceof Error ? e.message : String(e)).slice(0, 500),
+      latency_ms: Math.round(performance.now() - t0),
+      input_tokens: null,
+      output_tokens: null,
+      answers: null,
+    });
+    throw e;
+  }
+}
+
+// Per-caller summary of the usage log over the last `days` days. Cost uses $0.042 per million input tokens.
+export function usageSummary(days = 30) {
+  const db = openUsage();
+  if (!db) throw new Error(`usage log unavailable at ${USAGE_DB}`);
+  return db
+    .query(
+      `SELECT caller, COUNT(*) AS calls, SUM(1 - ok) AS errors, CAST(AVG(latency_ms) AS INTEGER) AS avg_ms,
+              COALESCE(SUM(input_tokens), 0) AS input_tokens, MAX(ts) AS last
+       FROM calls WHERE ts >= $since GROUP BY caller ORDER BY calls DESC`,
+    )
+    .all({ $since: new Date(Date.now() - days * 86_400_000).toISOString() }) as {
+    caller: string;
+    calls: number;
+    errors: number;
+    avg_ms: number;
+    input_tokens: number;
+    last: string;
+  }[];
 }
 
 export async function models(): Promise<{ name: string; description: string; release_date: string }[]> {
@@ -130,8 +267,16 @@ if (import.meta.main) {
       const req = JSON.parse(await Bun.stdin.text()) as { state: Text; questions: Record<string, Question>; model?: string };
       const r = await ask(req.state, req.questions, { model: req.model });
       console.log(JSON.stringify(r, null, 2));
+    } else if (cmd === "usage") {
+      const days = Number(process.argv[3] ?? 30);
+      console.log(`${USAGE_DB} (last ${days} days)`);
+      console.log("caller\tcalls\terrors\tavg_ms\tinput_tokens\tcost_usd\tlast");
+      for (const r of usageSummary(days))
+        console.log(
+          `${r.caller}\t${r.calls}\t${r.errors}\t${r.avg_ms}\t${r.input_tokens}\t${((r.input_tokens * 0.042) / 1e6).toFixed(6)}\t${r.last}`,
+        );
     } else {
-      console.error("usage: bun jev.ts models | bun jev.ts ask < request.json");
+      console.error("usage: bun jev.ts models | bun jev.ts ask < request.json | bun jev.ts usage [days]");
       process.exit(2);
     }
   } catch (e) {

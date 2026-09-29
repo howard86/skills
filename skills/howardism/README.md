@@ -12,7 +12,7 @@ Reachable only by typing the name.
 - **[blindspot](./blindspot/SKILL.md)** — Diagnosis-only pass over a stated goal that surfaces the unknown unknowns, ranked by leverage, plus sharper follow-up prompts. Never edits.
 - **[perf-review](./perf-review/SKILL.md)** — Fan out the perf-* angle skills as parallel subagents over a target and merge their findings into ranked, measurable improvement suggestions.
 - **[codex-fewer-permission-prompts](./codex-fewer-permission-prompts/SKILL.md)** — Mine recent Codex transcripts for repeated read-only approvals and add narrow prefix rules for them.
-- **[jev-decisions](./jev-decisions/SKILL.md)**: Reference for cheap, calibrated decisions over text with TypeSafe Jev (choice, score, yes/no with confidence), the shared helper other skills' scripts import, and where the API key lives.
+- **[jev-decisions](./jev-decisions/SKILL.md)**: Reference for cheap, calibrated decisions over text with TypeSafe Jev (choice, score, yes/no with confidence), the shared helper other skills' scripts import, its local SQLite usage log, and where the API key lives.
 
 ## Model-invoked
 

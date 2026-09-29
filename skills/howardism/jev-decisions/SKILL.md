@@ -1,6 +1,6 @@
 ---
 name: jev-decisions
-description: Reference for making cheap, calibrated decisions over text with TypeSafe Jev (choice, score, yes/no with confidence), the shared helper other skills' scripts import, and where the API key lives.
+description: Reference for making cheap, calibrated decisions over text with TypeSafe Jev (choice, score, yes/no with confidence), the shared helper other skills' scripts import, its local SQLite usage log, and where the API key lives.
 disable-model-invocation: true
 ---
 
@@ -34,7 +34,7 @@ Pass `state` as a JSON object with named fields (`brief`, `issue`, `excerpt`), n
 
 ## Using the helper from a script
 
-`scripts/jev.ts` exports `ask(state, questions, {model?, retries?})` (retries 429 and 5xx, honours retry-after, returns typed answers plus `latency_ms`), `models()`, `band()`, and `apiKey()`.
+`scripts/jev.ts` exports `ask(state, questions, {model?, retries?, caller?, meta?})` (retries 429 and 5xx, honours retry-after, returns typed answers plus `latency_ms`), `models()`, `band()`, and `apiKey()`.
 
 Consumers today: subagent-routing `scripts/route.ts` (model tier from a brief), retro `scripts/retro-scan.ts` (correction, nudge, wanted-skill labels), triage `scripts/triage-classify.ts` (category, state, spec completeness, out-of-scope match), afk-issue-loop `scripts/prescreen.ts` (migration, unmerged dependency, spec completeness).
 
@@ -63,6 +63,14 @@ Gotchas:
 - A locked keychain (SSH, a LaunchAgent after reboot) fails with exit 36. Run `security unlock-keychain`.
 - The rules engine's staged-secret-scan (gitleaks) gates commits, so a pasted key is caught before it lands.
 
+## Usage log
+
+Every `ask()` call, success or failure, appends one row to a local SQLite file (`bun:sqlite`): `$JEV_USAGE_DB`, else `$XDG_STATE_HOME/jev/usage.sqlite` (default `~/.local/state/jev/usage.sqlite`). `JEV_USAGE_DB=off` disables it. Table `calls` keeps `caller` (the entry script's file name unless `opts.caller` names it), `meta` (JSON from `opts.meta`), the requested and answering model, `ok`, `http_status`, `error`, `latency_ms`, token counts, and the full `state`, `questions`, and `answers` as JSON, so prompts and band thresholds can be tuned against real calls. Logging is fail-open and never fails the call.
+
+The log holds whatever text consumers put in `state` (the rules engine's Stop gate stores the turn's final message), so treat the file as private. It is never pruned. Pass `opts.meta` for context worth joining on later, such as a session id or item id.
+
+`bun ${CLAUDE_SKILL_DIR}/scripts/jev.ts usage [days]` prints calls, errors, average latency, input tokens, and cost per caller. For anything deeper, query the file with `sqlite3`.
+
 ## Limits and errors
 
 429 responses carry retry-after under fluctuating rate limits; the helper waits and retries. No streaming, no images.
@@ -71,4 +79,5 @@ Gotchas:
 
 - `bun ${CLAUDE_SKILL_DIR}/scripts/jev.ts models` lists the aliases the account can send.
 - `bun ${CLAUDE_SKILL_DIR}/scripts/jev.ts ask < request.json` posts a raw `{state, questions[, model]}` body.
+- `bun ${CLAUDE_SKILL_DIR}/scripts/jev.ts usage [days]` summarises the usage log per caller.
 - `bun ${CLAUDE_SKILL_DIR}/scripts/probe.ts` lists models and routes one subagent brief through a four-question set. Run it after storing or rotating the key.
