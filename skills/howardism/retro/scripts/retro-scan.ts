@@ -301,7 +301,7 @@ export function report(rows: Row[], days: number, cap: number, ledger: string, j
   }
   const loadedIn = (sid: string, prefix: string) => (sessionSkills.get(sid) ?? []).some((s) => s.name.startsWith(prefix));
 
-  out.push(`# retro-scan: last ${days}d — ${rows.length} rows, ${hand.length} hand-typed`);
+  out.push(`# retro-scan: last ${days}d, ${rows.length} rows, ${hand.length} hand-typed`);
   out.push(`dropped: harness projects ${harnessProjects.size} (${[...harnessProjects].map(short).join(", ") || "none"}); harness rows ${(kinds.get("harness") ?? []).length}; command bodies ${(kinds.get("body") ?? []).length}`);
   if (jev) out.push(jev.status);
   // Jev calibration: each bucket prints the regex/Jev overlap and up to `cap` rows each side missed.
@@ -328,7 +328,7 @@ export function report(rows: Row[], days: number, cap: number, ledger: string, j
       } catch {}
     }
   }
-  if (!ledgerRows.length) out.push(`0 rows (ledger starts ${ledgerFirst || "n/a"}; pushback rules exist since 2026-09-18 — expected when no anchored correction was typed; the corrections section below is the fallback)`);
+  if (!ledgerRows.length) out.push(`0 rows (ledger starts ${ledgerFirst || "n/a"}; pushback rules exist since 2026-09-18, expected when no anchored correction was typed; the corrections section below is the fallback)`);
   for (const r of ledgerRows) {
     out.push(`- ${r.ts.slice(0, 16)} ${r.rule} ${short(r.cwd ?? "")} ${String(r.session).slice(0, 8)} :: ${one(String(r.detail ?? ""))}`);
     briefs.corrections.push(`- ledger ${r.rule} ${r.ts.slice(0, 16)} ${String(r.session).slice(0, 8)} (${short(r.cwd ?? "")}) :: ${one(String(r.detail ?? ""), 200)}`);
@@ -440,7 +440,7 @@ export function report(rows: Row[], days: number, cap: number, ledger: string, j
     clusters.get(k)!.push(r);
   }
   for (const [k, rs] of [...clusters].sort((a, b) => b[1].length - a[1].length).filter(([, rs]) => rs.length >= 3).slice(0, cap)) {
-    out.push(`- ${rs.length}× "${k}…" — ${[...new Set(rs.map((r) => short(r.project)))].slice(0, 3).join(", ")}`);
+    out.push(`- ${rs.length}× "${k}…" in ${[...new Set(rs.map((r) => short(r.project)))].slice(0, 3).join(", ")}`);
     for (const r of rs.slice(0, 2)) out.push(`    ${r.ts.slice(0, 10)} ${one(r.text, 90)}`);
     briefs.repeats.push(`- ${rs.length}× "${k}…" in ${[...new Set(rs.map((r) => r.sid))].slice(0, 4).join(", ")} :: e.g. ${one(rs[0].text, 120)}`);
   }
