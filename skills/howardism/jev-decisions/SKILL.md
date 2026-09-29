@@ -22,6 +22,8 @@ Ask the session model instead when the answer needs reasoning across files, open
 
 Questions in one request run in parallel over the same `state` and cannot see each other, so put independent questions in one call. Chain dependent ones in code.
 
+To pick among labels, one `choice` beats one `noul` per label, even when an item can fit several. On the 2026-09-29 retro's 86 worker-verified skill-gap items, `choice` at confidence ≥ 0.8 was right 28 of 32 times. Per-skill `noul` put only 16 items at ≥ 0.8, still had 3 true matches below 0.2, and used 1.3× the tokens.
+
 ## State shape
 
 Pass `state` as a JSON object with named fields (`brief`, `issue`, `excerpt`), not one blob. In each question's `instructions`, refer to nested fields in backticks (`issue.body`). Limits: 32k tokens for state plus the longest question, 64k total.
