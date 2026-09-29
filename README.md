@@ -264,7 +264,8 @@ Skills I wrote myself, with no counterpart in the upstream fork.
 - **[implement-with-subagent](./skills/howardism/implement-with-subagent/SKILL.md)**: Delegate an approved plan using the running harness’s subagent reference, then verify and integrate the result.
 - **[commit-with-subagent](./skills/howardism/commit-with-subagent/SKILL.md)**: Delegate scoped atomic commits; verify before any requested push or draft PR.
 - **[subagent-routing](./skills/howardism/subagent-routing/SKILL.md)**: Resolve native delegation or an authorized Agent Bridge route, with supported models and clear ownership.
-- **[rebase-babysit](./skills/howardism/rebase-babysit/SKILL.md)**: Rebase a stale PR onto its base, resolve conflicts, force-push, then babysit reviews and CI through to merge-ready.
+- **[rebase-pr](./skills/howardism/rebase-pr/SKILL.md)**: Rebase a stale PR onto its remote base, resolve conflicts, verify, and force-push under an explicit lease.
+- **[babysit-pr](./skills/howardism/babysit-pr/SKILL.md)**: Watch a PR's CI, review threads, and mergeability through to merge-ready, merged, or closed.
 - **[retro](./skills/howardism/retro/SKILL.md)**: Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
 - **[perf-measurement](./skills/howardism/perf-measurement/SKILL.md)**: Estimate and measure performance: back-of-envelope costing from a latency-numbers table, microbenchmarks, profiling.
 - **[perf-algorithms](./skills/howardism/perf-algorithms/SKILL.md)**: Find algorithmic wins in a hot path: complexity reduction, fast paths, precomputing, deferring, caching.

@@ -100,7 +100,8 @@ Off the main flow entirely.
 - **`/teach`**: learn a concept over multiple sessions, using the current directory as a stateful workspace.
 - **`/writing-for-agents`** is the reference for writing documents agents consume: skills, AGENTS.md, pointed-at docs.
 - **`/blindspot`**: the inverse of `/grilling`. Grilling interrogates the plan *you* wrote; blindspot reads the system and reports what you didn't think to ask, ranked by leverage. Diagnosis only; it never edits, even a one-liner. Run it before `/grill-with-docs` when you suspect the goal itself is mis-framed.
-- **`/rebase-babysit`**: a stale PR, rescued. Rebases onto its base (running `/resolving-merge-conflicts` on the hunks), force-pushes, then watches reviews and CI through to merge-ready. For the PR that has drifted, not the conflict you're already sitting in.
+- **`/rebase-pr`**: a stale PR, rescued. Rebases onto its remote base (running `/resolving-merge-conflicts` on the hunks), verifies the patches and gates, and force-pushes under an explicit lease. For the PR that has drifted, not the conflict you're already sitting in.
+- **`/babysit-pr`**: watches a PR's CI and review threads through to merge-ready, fixing what's real on the way. Hands off to `/rebase-pr` first when the branch has fallen behind.
 - **`/chat-history`**: search and replay past Claude Code and Codex sessions from one CLI. Reach for it when the answer is in work you already did: a decision, an error, a prompt worth reusing.
 - **`/retro`**: mine those same sessions for what *keeps* happening: the prompt you retype, the friction you re-hit. Outputs proposed skills, rules, and memories. Where `/chat-history` answers one question, retro looks for the pattern.
 - **`/refine-skill`**: improve an existing skill by grounding it first: can it still fire, do its bundled parts resolve, has it ever run. Drift and dead wiring are invisible in the prose, so the editing comes last.

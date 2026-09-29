@@ -1,0 +1,3 @@
+interface:
+  display_name: "Rebase PR"
+  short_description: "Rebase a PR onto its remote base and force-push under a lease"
