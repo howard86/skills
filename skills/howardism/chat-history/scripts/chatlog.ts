@@ -9,7 +9,8 @@
 // search/prompts default --days 30, sessions defaults --days 7; --days 0 means unlimited.
 // --include-agents opts subagent transcripts (Claude <parent-uuid>/subagents/agent-*.jsonl, named
 // Claude workers whose records carry an agentName, Codex rollouts whose session_meta names a
-// parent_thread_id) back into prompts/sessions.
+// parent_thread_id) back into prompts/sessions. In prompts, agent rows carry a fourth header
+// token: [ts project sid agent].
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 
@@ -336,16 +337,22 @@ async function searchTranscripts(query: string, dir: string, re: RegExp): Promis
 
 // --- prompts dump (bulk, no query: feeds the retro skill) -----------------
 // Reads user turns straight from the Claude transcripts, mtime-pruned by --days.
+type PromptRow = { ts: string; project: string; sid: string; text: string; agent?: boolean };
+export function formatPromptRow(r: PromptRow, width: number): string {
+  return `[${r.ts.slice(0, 16)} ${r.project} ${r.sid.slice(0, 8)}${r.agent ? " agent" : ""}] ${width ? oneLine(r.text).slice(0, width) : oneLine(r.text)}`;
+}
 async function dumpPrompts(days: number, project: string, includeAgents: boolean) {
   const cutoff = days ? Date.now() - days * 86_400_000 : 0;
-  const rows: { ts: string; project: string; sid: string; text: string }[] = [];
+  const rows: PromptRow[] = [];
   for (const proj of await readdir(CLAUDE_DIR)) {
     const dir = `${CLAUDE_DIR}/${proj}`;
     if (project && !proj.toLowerCase().includes(project.toLowerCase())) continue;
     if (!(await isDir(dir))) continue;
     for await (const p of new Bun.Glob("**/*.jsonl").scan({ cwd: dir, absolute: true })) {
       if (Bun.file(p).lastModified < cutoff) continue;
-      if (!includeAgents && (isSubagentTranscript(p) || (await namedAgentOf(p)))) continue;
+      const isAgent = isSubagentTranscript(p) || !!(await namedAgentOf(p));
+      if (!includeAgents && isAgent) continue;
+      const agent = isAgent || undefined;
       const sid = sessionOf(p);
       for (const m of (await parseFile(p, /"type":"user"/)).filter((m) => m.role === "user")) {
         const text = m.text.trim();
@@ -355,12 +362,12 @@ async function dumpPrompts(days: number, project: string, includeAgents: boolean
           // A typed `/x` arrives as a wrapper turn then the body turn; keep one row for the pair.
           const prev = rows.at(-1);
           if (marker.startsWith("[skill:") && prev?.sid === sid && prev.text.startsWith(`[/${marker.slice(7, -1)}`)) continue;
-          rows.push({ ts: m.ts, project: proj, sid, text: marker });
+          rows.push({ ts: m.ts, project: proj, sid, text: marker, agent });
           continue;
         }
         if (isInjectedTurn(text)) continue;
         if (text.startsWith("Another Claude session sent a message:") || /^\d+ background agents? (was|were) stopped/.test(text)) continue;
-        rows.push({ ts: m.ts, project: proj, sid, text });
+        rows.push({ ts: m.ts, project: proj, sid, text, agent });
       }
     }
   }
@@ -521,6 +528,9 @@ if (cmd === "selfcheck") {
   console.assert(chunkPaths(Array.from({ length: 1200 }, (_, i) => String(i))).length === 3, "chunkPaths 1200 -> 3 batches");
   console.assert(chunkPaths(["a"]).length === 1, "chunkPaths short list -> 1 batch");
 
+  const fa = formatPromptRow({ ts: "2026-09-01T00:08:09", project: "p", sid: "abcdef0123", text: "hi", agent: true }, 0);
+  const fm = formatPromptRow({ ts: "2026-09-01T00:08:09", project: "p", sid: "abcdef0123", text: "hi" }, 0);
+  console.assert(fa === "[2026-09-01T00:08 p abcdef01 agent] hi" && fm === "[2026-09-01T00:08 p abcdef01] hi", "formatPromptRow", fa, fm);
   console.log("selfcheck ok");
 } else if (cmd === "show") {
   if (positional.length > 2) { console.error(`show takes one session id/path, got extra: ${positional.slice(2).join(" ")}`); process.exit(1); }
@@ -534,7 +544,7 @@ if (cmd === "selfcheck") {
   let rows = await dumpPrompts(Number(flag("days", "30")), flag("project", ""), includeAgents);
   if (grepRe) rows = rows.filter((r) => grepRe.test(r.text));
   if (tail) rows = rows.slice(-tail);
-  console.log(rows.map((r) => `[${r.ts.slice(0, 16)} ${r.project} ${r.sid.slice(0, 8)}] ${width ? oneLine(r.text).slice(0, width) : oneLine(r.text)}`).join("\n"));
+  console.log(rows.map((r) => formatPromptRow(r, width)).join("\n"));
 } else if (cmd === "search") {
   const query = positional.slice(1).join(" ");
   if (!query) { console.error("usage: bun chatlog.ts search <query> [--source claude|codex|all]"); process.exit(1); }
