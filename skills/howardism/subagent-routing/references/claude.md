@@ -13,6 +13,9 @@ session importing Claude instructions must use its own branch instead.
 | Scoped implementation, tests, ordinary commit grouping | `sonnet`; `medium` where an agent definition sets effort | `opus` |
 | Difficult design, diagnosis, high-risk review | `opus` | `fable` only if explicitly selected/authorized and available |
 
+The router's `scripts/route.ts` picks the starting choice from the brief; this
+table remains the escalation guide and the fallback when the script is unavailable.
+
 `opus` resolves to Opus 5.5 from v2.1.280, the account default on every plan
 except Foundry. Its default effort is `medium`, one level below every other
 model's `high`, and its per-token price sits below Opus 5, so the cost gap that
