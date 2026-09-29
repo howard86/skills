@@ -9,7 +9,7 @@
 //
 // Flags: --repo <owner/name> (passed to gh), --out-of-scope <dir> (default .out-of-scope in the cwd),
 //        --json (raw Jev responses).
-// Exit: 0 ok, 1 gh or Jev request failed, 2 usage, 3 Jev unavailable (no helper or no key).
+// Exit: 0 ok, 1 gh failed, 2 usage, 3 Jev unavailable (no helper, no key, or a failed request).
 
 import { $ } from "bun";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
@@ -264,8 +264,8 @@ try {
     }),
   );
 } catch (e) {
-  console.error(`triage-classify: jev request failed: ${redact(e instanceof Error ? e.message : String(e)).split("\n")[0]}`);
-  process.exit(1);
+  console.error(`jev unavailable: request failed: ${redact(e instanceof Error ? e.message : String(e)).split("\n")[0]}`);
+  process.exit(3);
 }
 
 if (args.json) {
