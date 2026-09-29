@@ -3,19 +3,24 @@
 // Owns the noise filter (harness rows, skill markers, command bodies, goals) and every tally
 // the retro reads: skill usage, corrections, nudges, repeats, long prompts, keyword→skill gaps.
 //
-//   bun retro-scan.ts [--days N] [--project sub] [--prompts file] [--cap N] [--briefs dir] [--per-brief N] [--no-jev] [--selfcheck]
+//   bun retro-scan.ts [--days N] [--project sub] [--prompts file] [--cap N] [--briefs dir] [--per-brief N] [--no-jev] [--jev-act x] [--verify-all] [--selfcheck]
 //
 // `--prompts file` reuses a saved `chatlog prompts --include-agents --width 0` dump instead of rescanning.
 // `--briefs dir` also writes one worker brief per non-empty verification bucket
 // (brief-nudges.md, brief-corrections.md, brief-gaps.md, brief-repeats.md): the same items the
 // report lists, framed as questions a read-only subagent answers into dir/verdicts-<bucket>.md.
+// With Jev, a gap item Jev settles (its wanted_skill is that skill at >= --jev-act, default 0.8) stays
+// out of the briefs and is listed in scan.md under "settled by jev"; every 5th settled item goes to
+// the brief anyway, tagged `(jev 0.93, audit)`, so calibration keeps labels at the top band.
+// --verify-all disables settling. --briefs also writes items.jsonl: one row per brief item (brief
+// file, index, Jev probability, settled flag) plus the settled ones, the input of retro-calibrate.ts.
 // A bucket over --per-brief items (default 24) splits into brief-<bucket>-1.md, -2.md, ... so one
 // worker never owns more transcript reads than it can finish.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join, resolve } from "node:path";
 
-type Row = { ts: string; project: string; sid: string; text: string; agent?: boolean };
+type Row = { ts: string; project: string; sid: string; text: string; agent?: boolean; prev?: string };
 
 // --- noise ------------------------------------------------------------------
 // Harness rows the chatlog dump still carries. Prefix match on the first 200 chars.
@@ -76,10 +81,12 @@ const SKILL_JOBS: Record<keyof typeof SKILL_KEYWORDS, string> = {
   "writing-for-agents": "Write or edit a skill, an AGENTS.md or CLAUDE.md, or another document an agent reads.",
   "resolving-merge-conflicts": "Resolve an in-progress git merge or rebase conflict.",
 };
+// Short prompts ("babysit", "verify states") carry their meaning in the assistant turn they answer.
+const PREV_NOTE = " If previous_reply is present, read it only to see what a short prompt refers to; judge the prompt itself.";
 const JEV_QUESTIONS = {
   is_correction: {
     type: "noul",
-    instructions: "Does this prompt open by correcting or reversing what the assistant just did?",
+    instructions: "Does this prompt open by correcting or reversing what the assistant just did?" + PREV_NOTE,
     criteria: {
       true: "The user rejects, undoes, or redirects the assistant's previous action or answer, e.g. 'no, keep the old name', 'revert that', 'I meant X, not Y'.",
       false: "The prompt gives a new task, asks a question, adds information, or approves; it does not push back on the assistant's last turn.",
@@ -87,7 +94,7 @@ const JEV_QUESTIONS = {
   },
   is_nudge: {
     type: "noul",
-    instructions: "Is this prompt a bare nudge to keep going, with no new instruction?",
+    instructions: "Is this prompt a bare nudge to keep going, with no new instruction?" + PREV_NOTE,
     criteria: {
       true: "Only a continue, retry, resume, yes, ok, or go on, carrying no new content.",
       false: "It carries a new instruction, question, correction, or information.",
@@ -95,14 +102,14 @@ const JEV_QUESTIONS = {
   },
   wanted_skill: {
     type: "choice",
-    instructions: "Which job does this prompt ask the assistant to do? Pick none when it asks for none of these jobs or names their words only in passing.",
+    instructions: "Which job does this prompt ask the assistant to do? Pick none when it asks for none of these jobs or names their words only in passing." + PREV_NOTE,
     criteria: { ...SKILL_JOBS, none: "Something else, or one of these topics mentioned only in passing." },
   },
 } as const;
 
 type JevVerdict = { correction: number; nudge: number; skill: string; skillConf: number };
-export type JevRun = { status: string; verdicts: Map<Row, JevVerdict> | null; inputTokens: number };
-type AskFn = (state: unknown, questions: typeof JEV_QUESTIONS) => Promise<{ answers: any; usage?: { input_tokens: number } }>;
+export type JevRun = { status: string; verdicts: Map<Row, JevVerdict> | null; inputTokens: number; model?: string };
+type AskFn = (state: unknown, questions: typeof JEV_QUESTIONS) => Promise<{ answers: any; usage?: { input_tokens: number }; model?: string }>;
 const errText = (e: unknown) => (e instanceof Error ? e.message : String(e)).replace(/\s+/g, " ").slice(0, 160);
 
 // Resolves the jev-decisions helper by sibling path, then the two deployed skill dirs.
@@ -124,16 +131,17 @@ async function loadJev(): Promise<{ ask: AskFn } | { reason: string }> {
 }
 
 // One request per hand row, `concurrency` in flight. A 401/403 stops the run: every later call would fail the same way.
-export async function jevClassify(hand: Row[], ask: AskFn, concurrency = 8): Promise<JevRun> {
+export async function jevClassify(hand: Row[], ask: AskFn, concurrency = 8, act = JEV_ACT): Promise<JevRun> {
   const verdicts = new Map<Row, JevVerdict>();
-  let inputTokens = 0, failed = 0, firstError = "", stop = false, next = 0;
+  let inputTokens = 0, failed = 0, firstError = "", stop = false, next = 0, model: string | undefined;
   const worker = async () => {
     while (!stop && next < hand.length) {
       const r = hand[next++];
       try {
-        const { answers: a, usage } = await ask({ prompt: r.text.slice(0, 2000) }, JEV_QUESTIONS);
+        const { answers: a, usage, model: m } = await ask({ prompt: r.text.slice(0, 2000), ...(r.prev ? { previous_reply: r.prev.slice(-600) } : {}) }, JEV_QUESTIONS);
         verdicts.set(r, { correction: a.is_correction.noul, nudge: a.is_nudge.noul, skill: a.wanted_skill.choice, skillConf: a.wanted_skill.confidence });
         inputTokens += usage?.input_tokens ?? 0;
+        model ||= m;
       } catch (e) {
         failed++;
         firstError ||= errText(e);
@@ -144,25 +152,25 @@ export async function jevClassify(hand: Row[], ask: AskFn, concurrency = 8): Pro
   await Promise.all(Array.from({ length: Math.min(concurrency, hand.length) }, worker));
   if (hand.length && !verdicts.size) return { status: `jev: unavailable (${firstError}), regex only`, verdicts: null, inputTokens };
   const fail = failed ? `, ${failed} failed (${firstError}); failed rows are regex only` : "";
-  return { status: `jev: ${verdicts.size}/${hand.length} hand-typed prompts classified${fail}; counts at >= ${JEV_ACT}, briefs tag ${JEV_CONFIRM} to ${JEV_ACT} as verify`, verdicts, inputTokens };
+  return { status: `jev: ${verdicts.size}/${hand.length} hand-typed prompts classified${fail}; counts at >= ${act}, briefs tag ${JEV_CONFIRM} to ${act} as verify; model ${model ?? "unknown"}`, verdicts, inputTokens, model };
 }
 
 // Regex set vs Jev set over one bucket. `pool` holds every candidate row (the regex set is a subset);
 // `score` is the row's Jev probability for this bucket. The brief keeps the first `limit` regex rows
 // (what the regex-only scan wrote) plus the first `limit` Jev-only rows at >= JEV_CONFIRM, in pool order.
-type Tag = { kind: "both" | "regex" | "jev" | null; verify?: number };
+type Tag = { kind: "both" | "regex" | "jev" | null; verify?: number; audit?: number };
 type Merged = { line: string; both: Row[]; onlyRegex: Row[]; onlyJev: Row[]; brief: { row: Row; tag: Tag }[] };
-export function merge(regex: Row[], pool: Row[], score: (r: Row) => number | undefined, limit: number): Merged {
+export function merge(regex: Row[], pool: Row[], score: (r: Row) => number | undefined, limit: number, jevAct = JEV_ACT): Merged {
   const s = (r: Row) => score(r) ?? 0;
   const inRegex = new Set(regex);
-  const act = new Set(pool.filter((r) => s(r) >= JEV_ACT));
-  const verify = pool.filter((r) => s(r) >= JEV_CONFIRM && s(r) < JEV_ACT);
+  const act = new Set(pool.filter((r) => s(r) >= jevAct));
+  const verify = pool.filter((r) => s(r) >= JEV_CONFIRM && s(r) < jevAct);
   const both = regex.filter((r) => act.has(r));
   const onlyRegex = regex.filter((r) => !act.has(r));
   const onlyJev = [...act].filter((r) => !inRegex.has(r));
   const keep = new Set([...regex.slice(0, limit), ...pool.filter((r) => !inRegex.has(r) && s(r) >= JEV_CONFIRM).slice(0, limit)]);
   const tagOf = (r: Row): Tag => {
-    const v = s(r) >= JEV_CONFIRM && s(r) < JEV_ACT ? s(r) : undefined;
+    const v = s(r) >= JEV_CONFIRM && s(r) < jevAct ? s(r) : undefined;
     return { kind: inRegex.has(r) ? (act.has(r) ? "both" : "regex") : act.has(r) ? "jev" : null, verify: v };
   };
   return {
@@ -176,6 +184,8 @@ export function fmtTags(tags: Tag[]): string {
   const kinds = [...new Set(tags.map((t) => t.kind).filter(Boolean))].map((k) => `(${k})`);
   const v = tags.map((t) => t.verify).filter((x): x is number => x !== undefined);
   if (v.length) kinds.push(`(jev ${Math.min(...v).toFixed(2)}, verify)`);
+  const a = tags.map((t) => t.audit).filter((x): x is number => x !== undefined);
+  if (a.length) kinds.push(`(jev ${Math.min(...a).toFixed(2)}, audit)`);
   return kinds.join(" ");
 }
 
@@ -197,12 +207,14 @@ function findChatlog(): string {
   return hit;
 }
 
+const PREV_LINE = "  ^prev: ";
 export function parsePrompts(dump: string): Row[] {
   const rows: Row[] = [];
   const head = /^\[(\S+) (\S+) (\S+)( agent)?\] (.*)$/;
   for (const line of dump.split("\n")) {
     const m = head.exec(line);
     if (m) rows.push({ ts: m[1], project: m[2], sid: m[3], text: m[5], ...(m[4] ? { agent: true } : {}) });
+    else if (rows.length && line.startsWith(PREV_LINE)) rows[rows.length - 1].prev = line.slice(PREV_LINE.length); // from `chatlog prompts --prev`
     else if (rows.length && line) rows[rows.length - 1].text += "\n" + line;
   }
   return rows;
@@ -279,12 +291,24 @@ export function handRows(rows: Row[]): Row[] {
   return rows.filter((r) => !r.agent && !hp.has(r.project) && classify(r.text) === "hand");
 }
 
-export function report(allRows: Row[], days: number, cap: number, ledger: string, jev?: JevRun): { text: string; briefs: Record<Bucket, string[]> } {
+// One row per brief item (same order as briefs[bucket]) for items.jsonl. `jev` is the probability for the
+// item's own question: null when Jev did not run on the row, 0 when it ran and answered otherwise.
+export type Rec = { bucket: Bucket; skill?: string; ts: string; sid: string; project: string; text: string; regex: boolean; jev: number | null; settled?: boolean };
+export type ReportOpts = { act?: number; verifyAll?: boolean };
+// Every 5th settled item is audited (index 0, 5, 10, ...), so any non-empty settled set keeps at least one.
+export const isAudit = (i: number) => i % 5 === 0;
+
+export function report(allRows: Row[], days: number, cap: number, ledger: string, jev?: JevRun, opts: ReportOpts = {}): { text: string; briefs: Record<Bucket, string[]>; recs: Record<Bucket, Rec[]>; settled: Rec[] } {
+  const act = opts.act ?? JEV_ACT;
   // Worker rows (subagent transcripts) feed only the skill table's `worker` column.
   const rows = allRows.filter((r) => !r.agent);
   const workerLoads = allRows.filter((r) => r.agent && classify(r.text) === "loaded-skill");
   const out: string[] = [];
   const briefs: Record<Bucket, string[]> = { nudges: [], corrections: [], gaps: [], repeats: [] };
+  const recs: Record<Bucket, Rec[]> = { nudges: [], corrections: [], gaps: [], repeats: [] };
+  const settled: Rec[] = [];
+  const add = (bucket: Bucket, line: string, rec: Omit<Rec, "bucket">) => { briefs[bucket].push(line); recs[bucket].push({ bucket, ...rec }); };
+  const recOf = (r: Row, regex: boolean, jevP: number | null, more: Partial<Rec> = {}): Omit<Rec, "bucket"> => ({ ts: r.ts, sid: r.sid, project: r.project, text: r.text, regex, jev: jevP, ...more });
   const harnessProjects = harnessProjectsOf(rows);
   const V = jev?.verdicts ?? null;
   const kept = rows.filter((r) => !harnessProjects.has(r.project));
@@ -334,7 +358,8 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
   if (!ledgerRows.length) out.push(`0 rows (ledger starts ${ledgerFirst || "n/a"}; pushback rules exist since 2026-09-18, expected when no anchored correction was typed; the corrections section below is the fallback)`);
   for (const r of ledgerRows) {
     out.push(`- ${r.ts.slice(0, 16)} ${r.rule} ${short(r.cwd ?? "")} ${String(r.session).slice(0, 8)} :: ${one(String(r.detail ?? ""))}`);
-    briefs.corrections.push(`- ledger ${r.rule} ${r.ts.slice(0, 16)} ${String(r.session).slice(0, 8)} (${short(r.cwd ?? "")}) :: ${one(String(r.detail ?? ""), 200)}`);
+    add("corrections", `- ledger ${r.rule} ${r.ts.slice(0, 16)} ${String(r.session).slice(0, 8)} (${short(r.cwd ?? "")}) :: ${one(String(r.detail ?? ""), 200)}`,
+      { ts: r.ts, sid: String(r.session).slice(0, 8), project: r.cwd ?? "", text: String(r.detail ?? ""), regex: true, jev: null });
   }
 
   // Skills
@@ -373,24 +398,43 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
 
   // Keyword → skill gaps
   out.push("\n## Keyword→skill gaps (prompt names the job, session never loaded the skill)");
+  type GapItem = { skill: string; row: Row; tag: Tag; score: number | undefined; settled: boolean; audit: boolean };
+  const perSkill: { skill: string; hits: Row[]; gaps: Row[]; m?: Merged; items: GapItem[]; score: (r: Row) => number | undefined }[] = [];
   for (const [skill, re] of Object.entries(SKILL_KEYWORDS)) {
     const hits = hand.filter((r) => re.test(r.text));
     const gaps = hits.filter((r) => !loadedIn(r.sid, skill));
+    const score = (r: Row) => (V?.get(r)?.skill === skill ? V.get(r)!.skillConf : undefined);
     if (V) {
-      const score = (r: Row) => (V.get(r)?.skill === skill ? V.get(r)!.skillConf : undefined);
-      const m = merge(gaps, hand.filter((r) => !loadedIn(r.sid, skill)), score, Math.min(cap, 6));
+      const m = merge(gaps, hand.filter((r) => !loadedIn(r.sid, skill)), score, Math.min(cap, 6), act);
+      const items = m.brief.map(({ row, tag }) => ({ skill, row, tag, score: score(row), settled: !opts.verifyAll && (score(row) ?? 0) >= act, audit: false }));
+      perSkill.push({ skill, hits, gaps, m, items, score });
+    } else perSkill.push({ skill, hits, gaps, items: gaps.slice(0, Math.min(cap, 6)).map((row) => ({ skill, row, tag: { kind: null }, score: undefined, settled: false, audit: false })), score });
+  }
+  // Settled items stay out of the briefs, except the audit sample that keeps top-band labels coming.
+  perSkill.flatMap((p) => p.items).filter((it) => it.settled).forEach((it, i) => { it.audit = isAudit(i); });
+  for (const { skill, hits, gaps, m, items, score } of perSkill) {
+    if (m) {
       if (!hits.length && !m.brief.length) continue;
       out.push(`- ${skill}: ${gaps.length} gap / ${hits.length} hit`);
       out.push(`    gaps: ${m.line}`);
       examples(m, "    ", (r) => `${r.ts.slice(0, 16)} ${short(r.project)} ${r.sid}${score(r) === undefined ? "" : ` jev ${score(r)!.toFixed(2)}`} :: ${one(r.text, 90)}`);
-      for (const { row: r, tag } of m.brief) briefs.gaps.push(`- [${skill}] ${fmtTags([tag])} ${r.ts.slice(0, 16)} ${r.sid} (${short(r.project)}) :: ${one(r.text, 160)}`);
-      continue;
+      const done = items.filter((it) => it.settled);
+      if (done.length) {
+        out.push(`    settled by jev: ${done.length} (${done.filter((it) => it.audit).length} audited in the brief)`);
+        for (const it of done.slice(0, cap)) out.push(`      ${it.row.ts.slice(0, 16)} ${short(it.row.project)} ${it.row.sid} jev ${it.score!.toFixed(2)}${it.audit ? " audit" : ""} :: ${one(it.row.text, 90)}`);
+      }
+    } else {
+      if (!hits.length) continue;
+      out.push(`- ${skill}: ${gaps.length} gap / ${hits.length} hit`);
+      for (const { row: r } of items) out.push(`    ${r.ts.slice(0, 16)} ${short(r.project)} ${r.sid} :: ${one(r.text, 90)}`);
     }
-    if (!hits.length) continue;
-    out.push(`- ${skill}: ${gaps.length} gap / ${hits.length} hit`);
-    for (const r of gaps.slice(0, Math.min(cap, 6))) {
-      out.push(`    ${r.ts.slice(0, 16)} ${short(r.project)} ${r.sid} :: ${one(r.text, 90)}`);
-      briefs.gaps.push(`- [${skill}] ${r.ts.slice(0, 16)} ${r.sid} (${short(r.project)}) :: ${one(r.text, 160)}`);
+    for (const it of items) {
+      const r = it.row, inRegex = it.tag.kind === "both" || it.tag.kind === "regex" || !m;
+      const p = V ? (V.has(r) ? it.score ?? 0 : null) : null;
+      const rec = recOf(r, inRegex, p, { skill, ...(it.settled ? { settled: true } : {}) });
+      if (it.settled && !it.audit) { settled.push({ bucket: "gaps", ...rec }); continue; }
+      const tag = it.audit ? { ...it.tag, audit: it.score } : it.tag;
+      add("gaps", `- [${skill}] ${m ? fmtTags([tag]) + " " : ""}${r.ts.slice(0, 16)} ${r.sid} (${short(r.project)}) :: ${one(r.text, 160)}`, rec);
     }
   }
 
@@ -399,15 +443,15 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
   out.push(`\n## Correction openers: ${corrections.length}`);
   if (V) {
     const score = (r: Row) => V.get(r)?.correction;
-    const m = merge(corrections, hand, score, cap * 2);
+    const m = merge(corrections, hand, score, cap * 2, act);
     const fmt = (r: Row) => `${r.ts.slice(0, 16)} ${short(r.project)} ${r.sid}${score(r) === undefined ? "" : ` jev ${score(r)!.toFixed(2)}`} :: ${one(r.text, 140)}`;
     out.push(m.line);
     for (const r of m.both.slice(0, cap)) out.push(`- (both) ${fmt(r)}`);
     examples(m, "", fmt);
-    for (const { row: r, tag } of m.brief) briefs.corrections.push(`- ${fmtTags([tag])} ${r.ts.slice(0, 16)} ${r.sid} (${short(r.project)}) :: ${one(r.text, 200)}`);
+    for (const { row: r, tag } of m.brief) add("corrections", `- ${fmtTags([tag])} ${r.ts.slice(0, 16)} ${r.sid} (${short(r.project)}) :: ${one(r.text, 200)}`, recOf(r, tag.kind === "both" || tag.kind === "regex", V.has(r) ? score(r)! : null));
   } else for (const r of corrections.slice(0, cap * 2)) {
     out.push(`- ${r.ts.slice(0, 16)} ${short(r.project)} ${r.sid} :: ${one(r.text, 140)}`);
-    briefs.corrections.push(`- ${r.ts.slice(0, 16)} ${r.sid} (${short(r.project)}) :: ${one(r.text, 200)}`);
+    add("corrections", `- ${r.ts.slice(0, 16)} ${r.sid} (${short(r.project)}) :: ${one(r.text, 200)}`, recOf(r, true, null));
   }
 
   // Nudges
@@ -417,7 +461,7 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
   if (V) {
     // Sessions: the regex scan's top `cap` plus the top `cap` by Jev-only rows; each lists all its union rows.
     const score = (r: Row) => V.get(r)?.nudge;
-    const m = merge(nudges, hand, score, Infinity);
+    const m = merge(nudges, hand, score, Infinity, act);
     out.push(m.line);
     examples(m, "", (r) => `${r.ts.slice(0, 16)} ${short(r.project)} ${r.sid}${score(r) === undefined ? "" : ` jev ${score(r)!.toFixed(2)}`} :: ${one(r.text, 60)}`);
     const inRegex = new Set(nudges);
@@ -427,13 +471,14 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
     for (const ps of sessions) {
       const r0 = ps[0].row, tags = fmtTags(ps.map((p) => p.tag));
       out.push(`- ${ps.length}× ${short(r0.project)} ${r0.sid} ${tags}`);
-      briefs.nudges.push(`- ${tags} ${r0.sid} (${short(r0.project)}) ${ps.length}× at ${ps.map((p) => p.row.ts.slice(11, 16)).slice(0, 6).join(", ")}`);
+      add("nudges", `- ${tags} ${r0.sid} (${short(r0.project)}) ${ps.length}× at ${ps.map((p) => p.row.ts.slice(11, 16)).slice(0, 6).join(", ")}`,
+        recOf(r0, ps.some((p) => p.tag.kind === "both" || p.tag.kind === "regex"), Math.max(...ps.map((p) => score(p.row) ?? 0))));
     }
   } else for (const [k, v] of sorted(nudgeBySid).slice(0, cap)) {
     out.push(`- ${v}× ${k}`);
     const sid = k.split(" ")[1];
     const at = nudges.filter((r) => r.sid === sid).map((r) => r.ts.slice(11, 16)).slice(0, 6).join(", ");
-    briefs.nudges.push(`- ${sid} (${k.split(" ")[0]}) ${v}× at ${at}`);
+    add("nudges", `- ${sid} (${k.split(" ")[0]}) ${v}× at ${at}`, recOf(nudges.find((r) => r.sid === sid)!, true, null));
   }
 
   // Repeats
@@ -443,7 +488,7 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
     out.push(`- ${v}× exact: ${one(k, 90)}`);
     if (NUDGE_RE.test(k)) continue; // a repeated nudge is the nudges bucket's item, not re-done work
     const sids = [...new Set(hand.filter((r) => norm(r.text).join(" ") === k).map((r) => r.sid))];
-    briefs.repeats.push(`- ${v}× exact "${one(k, 90)}" in ${sids.slice(0, 4).join(", ")}`);
+    add("repeats", `- ${v}× exact "${one(k, 90)}" in ${sids.slice(0, 4).join(", ")}`, { ts: "", sid: sids[0], project: "", text: k, regex: true, jev: null });
   }
   const clusters = new Map<string, Row[]>();
   for (const r of hand) {
@@ -456,7 +501,7 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
   for (const [k, rs] of [...clusters].sort((a, b) => b[1].length - a[1].length).filter(([, rs]) => rs.length >= 3).slice(0, cap)) {
     out.push(`- ${rs.length}× "${k}…" in ${[...new Set(rs.map((r) => short(r.project)))].slice(0, 3).join(", ")}`);
     for (const r of rs.slice(0, 2)) out.push(`    ${r.ts.slice(0, 10)} ${one(r.text, 90)}`);
-    briefs.repeats.push(`- ${rs.length}× "${k}…" in ${[...new Set(rs.map((r) => r.sid))].slice(0, 4).join(", ")} :: e.g. ${one(rs[0].text, 120)}`);
+    add("repeats", `- ${rs.length}× "${k}…" in ${[...new Set(rs.map((r) => r.sid))].slice(0, 4).join(", ")} :: e.g. ${one(rs[0].text, 120)}`, recOf(rs[0], true, null, { text: k }));
   }
 
   // Long prompts
@@ -473,7 +518,7 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
   out.push("\n## Hand-typed prompts per project");
   for (const [p, v] of sorted(counter(hand.map((r) => r.project))).slice(0, 15)) out.push(`- ${v} ${p}`);
   if (V) out.push(`\njev cost: ${V.size} requests, ${jev!.inputTokens} input tokens, $${((jev!.inputTokens / 1e6) * JEV_USD_PER_MTOK).toFixed(4)} at $${JEV_USD_PER_MTOK}/M`);
-  return { text: out.join("\n"), briefs };
+  return { text: out.join("\n"), briefs, recs, settled };
 }
 
 // --- main -------------------------------------------------------------------
@@ -528,6 +573,27 @@ if (import.meta.main) {
     console.assert(jb.gaps.length === 1 && jb.gaps[0].startsWith("- [commit-with-subagent] (both) "), `jev briefs.gaps ${jb.gaps}`);
     console.assert(jb.nudges.length === 1 && jb.nudges[0].startsWith("- (both) s1 "), `jev briefs.nudges ${jb.nudges}`);
     console.assert(fmtTags([{ kind: "regex", verify: 0.7 }, { kind: "jev" }, { kind: null, verify: 0.55 }]) === "(regex) (jev) (jev 0.55, verify)", "fmtTags");
+    // Settling: five gap items Jev is sure of (index 0 audited), one in the verify band; verifyAll keeps all.
+    const gapRows = parsePrompts([
+      ...[0, 1, 2, 3, 4].map((i) => `[2026-09-02T00:0${i} -Users-x-p g] babysit pr ${i}`),
+      "[2026-09-02T00:06 -Users-x-p g] babysit",
+      "  ^prev: PR 12 is open, CI running",
+    ].join("\n"));
+    console.assert(gapRows[5].prev === "PR 12 is open, CI running" && gapRows[5].text === "babysit", "parsePrompts prev");
+    const seen: any[] = [];
+    const ask2: AskFn = async (state) => {
+      seen.push(state);
+      const babysit = (state as { prompt: string }).prompt === "babysit";
+      return { answers: { is_correction: { noul: 0.1 }, is_nudge: { noul: 0.1 }, wanted_skill: { choice: "rebase-babysit", confidence: babysit ? 0.6 : 0.95 } }, usage: { input_tokens: 1 }, model: "jev-test" };
+    };
+    const run2 = await jevClassify(handRows(gapRows), ask2);
+    console.assert(seen.filter((x) => x.previous_reply).length === 1 && run2.model === "jev-test" && run2.status.includes("model jev-test"), "previous_reply and model");
+    const r2 = report(gapRows, 30, 10, "/nonexistent", run2);
+    console.assert(r2.settled.length === 4 && r2.settled.every((x) => x.settled && x.jev === 0.95), `settled ${r2.settled.length}`);
+    console.assert(r2.briefs.gaps.length === 2 && r2.briefs.gaps[0].includes("(jev 0.95, audit)") && r2.briefs.gaps[1].includes("(regex) (jev 0.60, verify)"), `settled briefs ${r2.briefs.gaps}`);
+    console.assert(r2.text.includes("settled by jev: 5 (1 audited") && r2.recs.gaps[1].jev === 0.6 && r2.recs.gaps[1].regex, "settled line and recs");
+    const r3 = report(gapRows, 30, 10, "/nonexistent", run2, { verifyAll: true });
+    console.assert(r3.settled.length === 0 && r3.briefs.gaps.length === 6 && r3.recs.gaps.length === 6, "verifyAll");
     console.log("selfcheck ok");
   } else {
     const days = Number(arg("days", "30"));
@@ -537,7 +603,7 @@ if (import.meta.main) {
     const file = arg("prompts", "");
     if (file) dump = readFileSync(file, "utf8");
     else {
-      const cmd = ["bun", findChatlog(), "prompts", "--days", String(days), "--include-agents", "--width", "0"];
+      const cmd = ["bun", findChatlog(), "prompts", "--days", String(days), "--include-agents", "--width", "0", "--prev"];
       const project = arg("project", "");
       if (project) cmd.push("--project", project);
       const proc = Bun.spawnSync(cmd, { stdout: "pipe", stderr: "inherit" });
@@ -545,6 +611,7 @@ if (import.meta.main) {
       dump = proc.stdout.toString();
     }
     const rows = parsePrompts(dump);
+    const act = Number(arg("jev-act", String(JEV_ACT)));
     let jev: JevRun = { status: "jev: off (--no-jev), regex only", verdicts: null, inputTokens: 0 };
     if (!has("no-jev")) {
       const j = await loadJev();
@@ -552,16 +619,18 @@ if (import.meta.main) {
       else {
         const hand = handRows(rows);
         console.error(`jev: classifying ${hand.length} hand-typed prompts, 8 in flight`);
-        jev = await jevClassify(hand, j.ask);
+        jev = await jevClassify(hand, j.ask, 8, act);
       }
     }
-    const { text, briefs } = report(rows, days, cap, ledger, jev);
+    const { text, briefs, recs, settled } = report(rows, days, cap, ledger, jev, { act, verifyAll: has("verify-all") });
     console.log(text);
     const dir = arg("briefs", "");
     if (dir) {
       mkdirSync(dir, { recursive: true });
       const written: string[] = [];
       const per = Number(arg("per-brief", "24"));
+      const sidecar: object[] = [];
+      const model = jev.model ?? null;
       for (const [bucket, items] of Object.entries(briefs) as [Bucket, string[]][]) {
         if (!items.length) continue;
         const parts = items.length > per ? Math.ceil(items.length / per) : 1;
@@ -571,8 +640,11 @@ if (import.meta.main) {
           const path = join(dir, `brief-${bucket}${part}.md`);
           writeFileSync(path, renderBrief(bucket, chunk, days, findChatlog(), resolve(dir), part));
           written.push(`${path} (${chunk.length} items)`);
+          recs[bucket].slice(i * per, (i + 1) * per).forEach((rec, j) => sidecar.push({ file: `brief-${bucket}${part}.md`, index: j, ...rec, jev_model: model }));
         }
       }
+      for (const rec of settled) sidecar.push({ file: null, index: null, ...rec, jev_model: model });
+      writeFileSync(join(dir, "items.jsonl"), sidecar.map((x) => JSON.stringify(x)).join("\n") + (sidecar.length ? "\n" : ""));
       console.error(written.length ? `briefs written:\n  ${written.join("\n  ")}` : "briefs: no items in any bucket");
     }
   }
