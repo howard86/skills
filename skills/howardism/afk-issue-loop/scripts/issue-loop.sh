@@ -26,6 +26,9 @@
 #   LIMIT           max issues this run    (default: 0 = no limit)
 #   DRY_RUN         1 = list only          (default: 0)
 #   SKIP_PR         1 = no push / no PR    (default: 0)
+#   PRESCREEN       1 = order + skip pending issues with prescreen.ts (Jev) before
+#                   the loop: non-migration first, drops vague or blocked ones;
+#                   keeps the original order if it fails (default: 0)
 #   BASE_BRANCH     PR base branch         (default: repo default branch)
 #   ENV_FILES       space-separated gitignored env files to copy main→worktree
 #                   (e.g. "apps/api/.env packages/db/.env"; default: none)
@@ -47,6 +50,7 @@ MAX_BUDGET_USD="${MAX_BUDGET_USD:-10}"
 LIMIT="${LIMIT:-0}"
 DRY_RUN="${DRY_RUN:-0}"
 SKIP_PR="${SKIP_PR:-0}"
+PRESCREEN="${PRESCREEN:-0}"
 BOOTSTRAP_CMD="${BOOTSTRAP_CMD:-}"
 DBUP_CMD="${DBUP_CMD:-}"
 
@@ -247,6 +251,23 @@ if [ "${#ISSUES[@]}" -eq 0 ]; then
   exit 0
 fi
 log "found ${#ISSUES[@]} open issue(s): ${ISSUES[*]}"
+
+# Optional Jev pre-screen of the pending (not yet done) issues; read-only, so it runs under DRY_RUN too.
+if [ "$PRESCREEN" = "1" ]; then
+  pending="$(for n in "${ISSUES[@]}"; do grep -qx "$n" "$DONE_FILE" || printf '%s,' "$n"; done)"
+  if [ -n "$pending" ]; then
+    if order="$(gh issue list --repo "$REPO" --state open --limit 200 ${LABEL:+--label "$LABEL"} \
+                  --json number,title,body,labels \
+                  --jq "[.[] | select(.number as \$n | [${pending%,}] | any(. == \$n))]" \
+                | bun "$(dirname "$0")/prescreen.ts")"; then
+      mapfile -t ISSUES < <(printf '%s' "$order")
+      [ "${#ISSUES[@]}" -gt 0 ] || { log "PRESCREEN skipped every pending issue, nothing to do"; exit 0; }
+      log "PRESCREEN order: ${ISSUES[*]}"
+    else
+      warn "PRESCREEN failed (exit $?), keeping the original order"
+    fi
+  fi
+fi
 
 [ "$DRY_RUN" = "1" ] || setup_worktree
 

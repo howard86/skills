@@ -22,7 +22,10 @@ DRY_RUN=1 ${CLAUDE_SKILL_DIR}/scripts/issue-loop.sh               # list only, c
 LIMIT=1 ${CLAUDE_SKILL_DIR}/scripts/issue-loop.sh                 # just the first pending issue
 ```
 Its header block documents every env knob and the `done.txt` resume file; read
-it there rather than trusting a copy here.
+it there rather than trusting a copy here. `PRESCREEN=1` automates part of PICK:
+`scripts/prescreen.ts` asks Jev to skip vague or blocked-on-unmerged issues and
+to order non-migration issues first, keeping the original order when Jev is
+unavailable.
 
 **Interactive (`/loop`):** run the protocol below per iteration, self-paced or
 on a cron. Use this when you want to watch each issue and intervene.
