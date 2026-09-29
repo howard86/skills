@@ -48,7 +48,8 @@ const CORRECTION_RE = /^\s*(no|nope|don'?t|dont|correction|actually|i mean|inste
 // Prompts that name a skill's job without naming the skill. A hit counts as a gap when no
 // marker for that skill appears in the same session.
 const SKILL_KEYWORDS: Record<string, RegExp> = {
-  "rebase-babysit": /\b(rebase|babysit|rescue (the|this) pr|watch ci|stale pr)\b/i,
+  "rebase-pr": /\b(rebase|rescue (the|this) pr|stale pr)\b/i,
+  "babysit-pr": /\b(babysit|watch ci)\b/i,
   "commit-with-subagent": /\b(atomic commits?|create (a |another )?pr|create (the |these |atomic )?commits|open (a )?pr|draft pr|\bcommit)\b/i,
   "implement-with-subagent": /\b(subagent|sub-agent|delegate|with (sub-?)?agents)\b/i,
   "perf-": /\b(perf|performance|benchmark|bench|latency|hot ?path|faster|slow|alloc)\b/i,
@@ -70,7 +71,8 @@ const JEV_CONFIRM = 0.5;
 const JEV_USD_PER_MTOK = 0.042;
 // One line per SKILL_KEYWORDS key: the job the skill does, so `wanted_skill` judges intent, not words.
 const SKILL_JOBS: Record<keyof typeof SKILL_KEYWORDS, string> = {
-  "rebase-babysit": "Rebase a PR branch onto its base, resolve conflicts, force-push, then watch its reviews and CI through merge or closure.",
+  "rebase-pr": "Rebase a PR branch onto its remote base, resolve conflicts, and force-push.",
+  "babysit-pr": "Watch a PR's CI and review threads through merge-ready, merge, or closure.",
   "commit-with-subagent": "Turn finished, approved changes into atomic commits, and push or open a draft PR when asked.",
   "implement-with-subagent": "Hand an approved implementation plan to a subagent worker, then verify and integrate its result.",
   "perf-": "Make code faster or cheaper: algorithmic wins, hot-path API shape, benchmarking and profiling, allocation and memory cuts, or stripping logging and indirection overhead.",
@@ -584,7 +586,7 @@ if (import.meta.main) {
     const ask2: AskFn = async (state) => {
       seen.push(state);
       const babysit = (state as { prompt: string }).prompt === "babysit";
-      return { answers: { is_correction: { noul: 0.1 }, is_nudge: { noul: 0.1 }, wanted_skill: { choice: "rebase-babysit", confidence: babysit ? 0.6 : 0.95 } }, usage: { input_tokens: 1 }, model: "jev-test" };
+      return { answers: { is_correction: { noul: 0.1 }, is_nudge: { noul: 0.1 }, wanted_skill: { choice: "babysit-pr", confidence: babysit ? 0.6 : 0.95 } }, usage: { input_tokens: 1 }, model: "jev-test" };
     };
     const run2 = await jevClassify(handRows(gapRows), ask2);
     console.assert(seen.filter((x) => x.previous_reply).length === 1 && run2.model === "jev-test" && run2.status.includes("model jev-test"), "previous_reply and model");
