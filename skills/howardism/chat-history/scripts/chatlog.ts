@@ -3,14 +3,15 @@
 //   bun chatlog.ts search <query> [--source claude|codex|all] [--days N] [--project sub]
 //                                 [--files N] [--hits N] [--tools] [--paths-only]
 //   bun chatlog.ts show <session-id|path> [--grep re] [--tools] [--width N] [--tail N] [--last]
-//   bun chatlog.ts prompts [--days N] [--project sub] [--grep re] [--width N] [--tail N] [--include-agents]
+//   bun chatlog.ts prompts [--days N] [--project sub] [--grep re] [--width N] [--tail N] [--include-agents] [--prev]
 //   bun chatlog.ts sessions [--source claude|codex|all] [--days N] [--project sub] [--limit N] [--include-agents]
 //   bun chatlog.ts selfcheck
 // search/prompts default --days 30, sessions defaults --days 7; --days 0 means unlimited.
 // --include-agents opts subagent transcripts (Claude <parent-uuid>/subagents/agent-*.jsonl, named
 // Claude workers whose records carry an agentName, Codex rollouts whose session_meta names a
 // parent_thread_id) back into prompts/sessions. In prompts, agent rows carry a fourth header
-// token: [ts project sid agent].
+// token: [ts project sid agent]. --prev adds a `  ^prev: <text>` line under each typed prompt of
+// 5 words or fewer: the assistant text just before it (600 chars), so a bare "verify states" keeps its referent.
 import { readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 
@@ -25,7 +26,7 @@ type FlagSpec = Record<string, "bool" | "num" | "str">;
 const CMD_FLAGS: Record<string, FlagSpec> = {
   search: { source: "str", days: "num", project: "str", files: "num", hits: "num", tools: "bool", "paths-only": "bool" },
   show: { grep: "str", tools: "bool", width: "num", tail: "num", last: "bool" },
-  prompts: { days: "num", project: "str", grep: "str", width: "num", tail: "num", "include-agents": "bool" },
+  prompts: { days: "num", project: "str", grep: "str", width: "num", tail: "num", "include-agents": "bool", prev: "bool" },
   sessions: { source: "str", days: "num", project: "str", limit: "num", "include-agents": "bool" },
   selfcheck: {},
 };
@@ -337,11 +338,13 @@ async function searchTranscripts(query: string, dir: string, re: RegExp): Promis
 
 // --- prompts dump (bulk, no query: feeds the retro skill) -----------------
 // Reads user turns straight from the Claude transcripts, mtime-pruned by --days.
-type PromptRow = { ts: string; project: string; sid: string; text: string; agent?: boolean };
+type PromptRow = { ts: string; project: string; sid: string; text: string; agent?: boolean; prev?: string };
+export const PREV_MAX_WORDS = 5;
 export function formatPromptRow(r: PromptRow, width: number): string {
-  return `[${r.ts.slice(0, 16)} ${r.project} ${r.sid.slice(0, 8)}${r.agent ? " agent" : ""}] ${width ? oneLine(r.text).slice(0, width) : oneLine(r.text)}`;
+  const head = `[${r.ts.slice(0, 16)} ${r.project} ${r.sid.slice(0, 8)}${r.agent ? " agent" : ""}] ${width ? oneLine(r.text).slice(0, width) : oneLine(r.text)}`;
+  return r.prev ? `${head}\n  ^prev: ${oneLine(r.prev).slice(-600)}` : head;
 }
-async function dumpPrompts(days: number, project: string, includeAgents: boolean) {
+async function dumpPrompts(days: number, project: string, includeAgents: boolean, withPrev = false) {
   const cutoff = days ? Date.now() - days * 86_400_000 : 0;
   const rows: PromptRow[] = [];
   for (const proj of await readdir(CLAUDE_DIR)) {
@@ -354,7 +357,10 @@ async function dumpPrompts(days: number, project: string, includeAgents: boolean
       if (!includeAgents && isAgent) continue;
       const agent = isAgent || undefined;
       const sid = sessionOf(p);
-      for (const m of (await parseFile(p, /"type":"user"/)).filter((m) => m.role === "user")) {
+      let lastReply = "";
+      for (const m of await parseFile(p, withPrev ? /"type":"(user|assistant)"/ : /"type":"user"/)) {
+        if (m.role === "assistant") { lastReply = m.text; continue; }
+        if (m.role !== "user") continue;
         const text = m.text.trim();
         if (!text) continue;
         const marker = skillMarker(text);
@@ -367,7 +373,8 @@ async function dumpPrompts(days: number, project: string, includeAgents: boolean
         }
         if (isInjectedTurn(text)) continue;
         if (text.startsWith("Another Claude session sent a message:") || /^\d+ background agents? (was|were) stopped/.test(text)) continue;
-        rows.push({ ts: m.ts, project: proj, sid, text, agent });
+        const short = withPrev && lastReply && text.split(/\s+/).length <= PREV_MAX_WORDS;
+        rows.push({ ts: m.ts, project: proj, sid, text, agent, ...(short ? { prev: lastReply } : {}) });
       }
     }
   }
@@ -531,6 +538,8 @@ if (cmd === "selfcheck") {
   const fa = formatPromptRow({ ts: "2026-09-01T00:08:09", project: "p", sid: "abcdef0123", text: "hi", agent: true }, 0);
   const fm = formatPromptRow({ ts: "2026-09-01T00:08:09", project: "p", sid: "abcdef0123", text: "hi" }, 0);
   console.assert(fa === "[2026-09-01T00:08 p abcdef01 agent] hi" && fm === "[2026-09-01T00:08 p abcdef01] hi", "formatPromptRow", fa, fm);
+  const fp = formatPromptRow({ ts: "2026-09-01T00:08:09", project: "p", sid: "abcdef0123", text: "verify states", prev: "Three\nagents running" }, 0);
+  console.assert(fp === "[2026-09-01T00:08 p abcdef01] verify states\n  ^prev: Three agents running", "formatPromptRow prev", fp);
   console.log("selfcheck ok");
 } else if (cmd === "show") {
   if (positional.length > 2) { console.error(`show takes one session id/path, got extra: ${positional.slice(2).join(" ")}`); process.exit(1); }
@@ -541,7 +550,7 @@ if (cmd === "selfcheck") {
   const grepRe = grepFlag ? new RegExp(grepFlag, "i") : null;
   const width = Number(flag("width", "500"));
   const tail = Number(flag("tail", "0"));
-  let rows = await dumpPrompts(Number(flag("days", "30")), flag("project", ""), includeAgents);
+  let rows = await dumpPrompts(Number(flag("days", "30")), flag("project", ""), includeAgents, has("prev"));
   if (grepRe) rows = rows.filter((r) => grepRe.test(r.text));
   if (tail) rows = rows.slice(-tail);
   console.log(rows.map((r) => formatPromptRow(r, width)).join("\n"));
@@ -565,7 +574,7 @@ if (cmd === "selfcheck") {
   console.error(`usage:
   bun chatlog.ts search <query> [--source claude|codex|all] [--days N] [--project sub] [--files N] [--hits N] [--tools] [--paths-only]
   bun chatlog.ts show <session-id|path> [--grep re] [--tools] [--width N] [--tail N] [--last]
-  bun chatlog.ts prompts [--days N] [--project sub] [--grep re] [--width N] [--tail N] [--include-agents]
+  bun chatlog.ts prompts [--days N] [--project sub] [--grep re] [--width N] [--tail N] [--include-agents] [--prev]
   bun chatlog.ts sessions [--source claude|codex|all] [--days N] [--project sub] [--limit N] [--include-agents]
   bun chatlog.ts selfcheck`);
   process.exit(1);
