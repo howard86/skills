@@ -40,8 +40,16 @@ const COMMAND_BODIES = [
   "Parse a local asset", "Distill actionable", "Answer a research question", "Close scoped alpha",
   "Operate a worker fleet", "Review recent sessions for workflow friction", "Produce `<new-cards>`",
   "Run one unattended research", "Show the current state of the knowledge base", "Scout fresh external sources",
-  "Distill an alpha family", "# Update Config Skill",
+  "Distill an alpha family", "# Update Config Skill", "Run .claude/commands/research-cycle.md",
 ];
+// A short prompt that answers a question the assistant just asked ("yes" to a force-push question, "1" to a menu)
+// is not a nudge: `prev` ends in a question mark, carries an option list, or offers ("Want me to").
+const OPTION_LINE_RE = /^\s*(\d+\.|-)\s+\S.{0,40}$/gm;
+export function isAnswer(prev?: string): boolean {
+  if (!prev) return false;
+  const t = prev.trim();
+  return /\?[\s*_)"'`\]]*$/.test(t) || (t.match(OPTION_LINE_RE)?.length ?? 0) >= 2 || /\b(want me to|should i|shall i)\b/i.test(t);
+}
 const NUDGE_RE = /^\s*(continue|retry|resume|go on|proceed|yes|ok|y)\s*[.!]?\s*$/i;
 // Wider than the rules engine's `pushback` anchor: it also catches the openers the ledger misses.
 const CORRECTION_RE = /^\s*(no|nope|don'?t|dont|correction|actually|i mean|instead|revert|discard|prefer|turn off|wrong|stop|wait|undo|remove)\b/i;
@@ -52,7 +60,7 @@ const SKILL_KEYWORDS: Record<string, RegExp> = {
   "babysit-pr": /\b(babysit|watch ci)\b/i,
   "commit-with-subagent": /\b(atomic commits?|create (a |another )?pr|create (the |these |atomic )?commits|open (a )?pr|draft pr|\bcommit)\b/i,
   "implement-with-subagent": /\b(subagent|sub-agent|delegate|with (sub-?)?agents)\b/i,
-  "perf-": /\b(perf|performance|benchmark|bench|latency|hot ?path|faster|slow|alloc)\b/i,
+  "perf-": /\b(latency|hot[ -]?path|micro-?benchmark|benchmark|bench|alloc(ation)?s?|throughput|p99|profil(e|ing)|optimi[sz]\w*\W+(\w+\W+){0,3}(code|function|loop|query|algorithm|memory|hot ?path)|(code|function|loop|query|algorithm|memory)\W+(\w+\W+){0,3}optimi[sz]\w*)\b/i,
   "chat-history": /\b(last time|did we|previous session|earlier session|what did (i|we)|chat-history)\b/i,
   "disk-cleanup": /\b(disk|free space|clean ?up large|stale worktrees)\b/i,
   "agent-status": /\b(stuck|seems stale|idle agents|still running|takes (this|so) long|verify states)\b/i,
@@ -287,6 +295,25 @@ function harnessProjectsOf(rows: Row[]): Set<string> {
     [...perProject].filter(([p, s]) => p === home || p.startsWith("-private-tmp") || (s.size >= 3 && [...s.values()].every((v) => v === 1))).map(([p]) => p),
   );
 }
+// A ScheduleWakeup (/loop) tick re-sends the user's prompt verbatim every interval, so one hand-typed bootstrap
+// shows up as N identical long rows in one session. Keep the first, drop the echoes. Short prompts ("resume",
+// "continue") are genuinely retyped and stay.
+export const ECHO_MIN_CHARS = 150, ECHO_MIN_REPEATS = 3;
+const echoKey = (r: Row) => r.sid + "\0" + r.text.replace(/\s+/g, " ").trim().toLowerCase().slice(0, 120);
+export function dropAutomationEchoes(rows: Row[]): { rows: Row[]; dropped: number } {
+  const n = new Map<string, number>();
+  for (const r of rows) if (!r.agent && r.text.length >= ECHO_MIN_CHARS) { const k = echoKey(r); n.set(k, (n.get(k) ?? 0) + 1); }
+  const seen = new Set<string>();
+  let dropped = 0;
+  const kept = rows.filter((r) => {
+    if (r.agent || r.text.length < ECHO_MIN_CHARS) return true;
+    const k = echoKey(r);
+    if ((n.get(k) ?? 0) < ECHO_MIN_REPEATS) return true;
+    if (seen.has(k)) { dropped++; return false; }
+    seen.add(k); return true;
+  });
+  return { rows: kept, dropped };
+}
 // The rows report() treats as hand-typed: the set Jev classifies.
 export function handRows(rows: Row[]): Row[] {
   const hp = harnessProjectsOf(rows);
@@ -457,13 +484,16 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
   }
 
   // Nudges
-  const nudges = hand.filter((r) => NUDGE_RE.test(r.text));
-  out.push(`\n## Nudges: ${nudges.length} (verify the cause per session: \`chatlog show <sid> --grep "529|limit|Overloaded"\`)`);
+  const answers = hand.filter((r) => isAnswer(r.prev));
+  const isAns = new Set(answers);
+  const nudges = hand.filter((r) => NUDGE_RE.test(r.text) && !isAns.has(r));
+  const answersExcluded = answers.filter((r) => NUDGE_RE.test(r.text)).length;
+  out.push(`\n## Nudges: ${nudges.length}, ${answersExcluded} answers excluded (verify the cause per session: \`chatlog show <sid> --grep "529|limit|Overloaded"\`)`);
   const nudgeBySid = counter(nudges.map((r) => `${short(r.project)} ${r.sid}`));
   if (V) {
     // Sessions: the regex scan's top `cap` plus the top `cap` by Jev-only rows; each lists all its union rows.
     const score = (r: Row) => V.get(r)?.nudge;
-    const m = merge(nudges, hand, score, Infinity, act);
+    const m = merge(nudges, hand.filter((r) => !isAns.has(r)), score, Infinity, act);
     out.push(m.line);
     examples(m, "", (r) => `${r.ts.slice(0, 16)} ${short(r.project)} ${r.sid}${score(r) === undefined ? "" : ` jev ${score(r)!.toFixed(2)}`} :: ${one(r.text, 60)}`);
     const inRegex = new Set(nudges);
@@ -541,6 +571,21 @@ if (import.meta.main) {
     const agentRow: Row = { ts: "2026-09-01T00:08", project: "-Users-x-proj", sid: "a1", text: "[skill:perf-algorithms]", agent: true };
     const rows = parsePrompts(sample);
     console.assert(rows.length === 9 && rows[8].text.includes("\ncontinuation"), "parsePrompts continuation");
+    const long = "Translation 50-min check. Log: /tmp/x. Read the log, compare against the goal, report what changed and schedule the next check unless the goal is met.";
+    const echoRows: Row[] = [1, 2, 3].map((i) => ({ ts: `2026-09-01T0${i}:00`, project: "-Users-x-proj", sid: "s2", text: long }));
+    const echo = dropAutomationEchoes([...rows, ...echoRows, { ts: "2026-09-01T04:00", project: "-Users-x-proj", sid: "s3", text: long }]);
+    console.assert(echo.dropped === 2 && echo.rows.length === rows.length + 2, `dropAutomationEchoes ${echo.dropped}/${echo.rows.length}`);
+    const tick = (w: string) => `Check on the five PR rebase agents (see the list in the last status block) and integrate whatever finished into the stack, then report which branches are still red${w}`;
+    const near = dropAutomationEchoes([1, 2, 3].map((i) => ({ ts: `2026-09-01T0${i}:00`, project: "-Users-x-proj", sid: "s4", text: tick(["", " now", ", thanks."][i - 1]) })));
+    console.assert(near.dropped === 2 && near.rows.length === 1, `near-duplicate echoes ${near.dropped}/${near.rows.length}`);
+    console.assert(isAnswer("Force-push the branch?") && isAnswer("Pick one:\n1. rebase\n2. merge") && isAnswer("Want me to apply it") && isAnswer("- a\n- b") === true, "isAnswer positives");
+    console.assert(!isAnswer("API Error: 529 Overloaded") && !isAnswer("Usage limit reached, resets at 5pm") && !isAnswer("Sleeping 270s until the next check.") && !isAnswer("Done. All checks pass.") && !isAnswer(undefined), "isAnswer negatives");
+    const nrep = report([
+      { ts: "2026-09-01T00:00", project: "-Users-x-proj", sid: "n1", text: "yes", prev: "Force-push the branch?" },
+      { ts: "2026-09-01T00:01", project: "-Users-x-proj", sid: "n2", text: "resume", prev: "API Error: 529 Overloaded" },
+    ], 30, 5, "/nonexistent").text;
+    console.assert(nrep.includes("## Nudges: 1, 1 answers excluded"), "nudges answers excluded");
+    console.assert(SKILL_KEYWORDS["perf-"].test("benchmark fix-point on two machines") && SKILL_KEYWORDS["perf-"].test("replace the async runtime and benchmark latency against tokio") && SKILL_KEYWORDS["perf-"].test("propose an implementation plan that reduce hot path latency") && !SKILL_KEYWORDS["perf-"].test("verify slow github CI") && !SKILL_KEYWORDS["perf-"].test("speed up shell startup scripts") && !SKILL_KEYWORDS["perf-"].test("save storage"), "perf keywords");
     const kinds = rows.map((r) => classify(r.text));
     console.assert(JSON.stringify(kinds) === JSON.stringify(["hand", "typed-skill", "typed-skill", "loaded-skill", "harness", "hand", "hand", "hand", "body"]), `classify ${kinds}`);
     const { text: rep, briefs } = report([...rows, agentRow], 30, 10, "/nonexistent");
@@ -612,7 +657,9 @@ if (import.meta.main) {
       if (proc.exitCode !== 0) process.exit(proc.exitCode);
       dump = proc.stdout.toString();
     }
-    const rows = parsePrompts(dump);
+    const echo = dropAutomationEchoes(parsePrompts(dump));
+    const rows = echo.rows;
+    if (echo.dropped) console.error(`dropped ${echo.dropped} automation echoes (same long prompt prefix >= ${ECHO_MIN_REPEATS}x in one session)`);
     const act = Number(arg("jev-act", String(JEV_ACT)));
     let jev: JevRun = { status: "jev: off (--no-jev), regex only", verdicts: null, inputTokens: 0 };
     if (!has("no-jev")) {
