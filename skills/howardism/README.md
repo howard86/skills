@@ -13,6 +13,7 @@ Reachable only by typing the name.
 - **[perf-review](./perf-review/SKILL.md)** — Fan out the perf-* angle skills as parallel subagents over a target and merge their findings into ranked, measurable improvement suggestions.
 - **[codex-fewer-permission-prompts](./codex-fewer-permission-prompts/SKILL.md)** — Mine recent Codex transcripts for repeated read-only approvals and add narrow prefix rules for them.
 - **[jev-decisions](./jev-decisions/SKILL.md)**: Reference for cheap, calibrated decisions over text with TypeSafe Jev (choice, score, yes/no with confidence), the shared helper other skills' scripts import, its local SQLite usage log, and where the API key lives.
+- **[retro](./retro/SKILL.md)**: Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
 
 ## Model-invoked
 
@@ -28,7 +29,6 @@ Model- or user-reachable (rich trigger phrasing so the model can reach for them)
 - **[subagent-routing](./subagent-routing/SKILL.md)**: Resolve native delegation or an authorized Agent Bridge route, with supported models and clear ownership.
 - **[rebase-pr](./rebase-pr/SKILL.md)**: Rebase a stale PR onto its remote base, resolve conflicts, verify, and force-push under an explicit lease.
 - **[babysit-pr](./babysit-pr/SKILL.md)**: Watch a PR's CI, review threads, and mergeability through to merge-ready, merged, or closed.
-- **[retro](./retro/SKILL.md)** — Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
 - **[agent-status](./agent-status/SKILL.md)** — Audit every unit of running work a session owns (subagents, background tasks, agent-bridge sessions, remote runs) and give each a live/quiet/stale verdict with the action taken.
 - **[disk-cleanup](./disk-cleanup/SKILL.md)** — Reclaim disk on the Mac by running the housekeeping scripts in the order that works, with the guards they lack (/private/tmp vault copies, detached worktrees, the `out` kind footgun, df as the only measure).
 - **[perf-measurement](./perf-measurement/SKILL.md)** — Estimate and measure performance: back-of-envelope costing from a latency-numbers table, microbenchmarks, profiling.

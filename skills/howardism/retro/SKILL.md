@@ -1,6 +1,7 @@
 ---
 name: retro
-description: Retrospective over past Claude session history to improve prompt quality and reusability. Use when the user says "retro", "/retro", "review my prompts", "what keeps repeating", or wants session history mined for recurring prompts, friction, and skill/CLAUDE.md improvements.
+description: Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
+disable-model-invocation: true
 ---
 
 # Retro
