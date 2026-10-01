@@ -1,3 +1,135 @@
+# Retro: 2026-09-01 to 2026-10-01, skill usage against the memory gotchas
+
+Scope: 30-day scan by `retro-scan.ts` (1,327 rows, 720 hand-typed; Jev `jev-1.13.0` classified all
+720, `jev cost: 720 requests, 735959 input tokens, $0.0309 at $0.042/M`), eight read-only Sonnet
+workers (nudges 24, corrections 28, keyword gaps 75, repeats 18), the rules-engine audit log since
+the 2026-09-24 retro, and a root pass over the memory directory asking which recorded gotchas the
+skills that keep hitting them still do not carry. Twenty-eight of the thirty days overlap the
+2026-09-29 retro, so most verified items repeat its verdicts; the new material is the gotcha pass.
+Session ids are worker verdicts unless marked root.
+
+## Findings, ranked
+
+### 1. The retro scan counted its own session, which the memory already warned about
+
+`transcript_scan_self_contamination.md` (2026-09-18) says to exclude the running session before
+counting; the script had no way to. This session (ea447cfe) appeared in the writing-for-agents gap
+list, and the 09-08, 09-18 and 09-23 retro sessions appeared as research and chat-history gaps
+(29c07697, 84da1339, 79774cd1), each costing a worker a transcript read to say "this was a retro".
+Applied: `--exclude <sid,...>` in `retro-scan.ts`, step 1 of the skill passes the session id read
+from the scratchpad path. Rerun with it: 4 rows dropped, this session gone from every table.
+
+### 2. Gap rows that predate the skill, or loaded it under its old name, reached workers
+
+Five commit-with-subagent and implement-with-subagent items verified "unavailable, skill did not
+exist" (72b7340f, 7a516179, c4047cb9, d52ed1e8, 54535acc), yet both predecessors (`-with-sonnet`,
+born 2026-05-26, root: git) were there; two rebase-pr items had loaded `rebase-babysit` earlier in
+the session (cb5ac8d7, ea3c53f7); seven agent-status and both disk-cleanup gaps predate those
+skills (created 2026-09-16, root: git). Applied: `SKILL_ALIASES` (a marker for the old name counts
+as a load) and `SKILL_SINCE` (rows older than the skill are dropped and counted on the skill's
+line). Rerun: agent-status 13 to 6 gaps, disk-cleanup 2 to 0, rebase-pr 11 to 9,
+implement-with-subagent 19 to 16.
+
+### 3. A status poll under 150 characters slipped past the loop-echo filter
+
+"Check on the five PR rebase agents (pr1368, ...)" was typed three times at 30-minute intervals in
+7221817b (103 characters, verified echo). The filter needed 150. Applied: threshold 80 with a
+self-check case; the rerun drops 44 echoes against 42.
+
+### 4. The rules-engine apply path keeps hitting the self-modification classifier
+
+Nudges 5d9d4b50 (2026-09-29: "go ahead" and "go" after denials on an `engine.ts` edit and the
+selfcheck run) and e046062b (a worker's prune script refused, the user ran it by hand) are the only
+genuine permission-boundary stops in 24 nudges; the 2026-09-29 retro hit the same wall writing
+`jev-skill.md`. `rules_engine_self_modification_block.md` has carried the verified worktree route
+since 2026-09-18, but step 4 of the retro skill briefed "one write-enabled worker per repo" with no
+mention of it. Applied: the retro skill's step 4 briefs the rules-engine worker with the linked
+worktree route and hands new rule files and the merge to the user as `!` commands.
+
+### 5. `agent-status` misses "verify current state"
+
+After the skill's 2026-09-16 birth: "verify current status" (20e7532d) and "verify current state"
+(a6341bfd, 746f7aac), all on 2026-09-29, all Jev >= 0.96, none loaded the skill, while two other
+sessions that day did. Verified earlier instances hand-rolled the liveness check (882b57b0 twice,
+e046062b). The description listed "verify states" only. Applied: "verify current state" and
+"verify current status" while work is in flight added to the description. A stronger fix needs
+the rules engine, which already tracks live workers: a `UserPromptSubmit` rule keyed on a leading
+`verify (current )?(state|states|status)` that fires only while `liveAgents` is non-empty. Not
+written (self-modification block); content below for the user.
+
+### 6. The delegated-amend gotcha lived only in memory
+
+`git_fixup_amend_gotchas.md` (2026-09-23, b9741ca2 in this repo) records the one amend shape the
+auto-mode classifier allows; `commit-with-subagent` said nothing about amending, so a worker asked
+to clean up commits would rediscover the denial. Applied: one paragraph in the skill's commit
+section.
+
+### 7. `retro` is now user-invoked (asked for mid-session)
+
+`disable-model-invocation: true`, `agents/openai.yaml` with `allow_implicit_invocation: false`,
+human-facing description, README entries moved to the User-invoked groups. The scan shows 9 typed
+loads against 2 model loads in the window, so nothing is lost. One consequence: the rules-engine
+`skill-mention` alternation still lists `retro`, and a mid-sentence `/retro` now tells the model to
+call a Skill tool that cannot see it. Drop `retro` from that alternation by hand.
+
+### 8. Three memories had drifted (root)
+
+- `jev_decision_routing.md` said the `jev-skill` rule was still to be added by hand; it exists and
+  fired 4 times since 2026-09-24. Updated.
+- `skill_unlink_is_transient.md` predicted the 7 unlinked `engineering/` skills would return; all 7
+  symlinks are back in `~/.claude/skills` and none loaded in 30 days. Updated with the observation.
+  Decision for the user: accept them, move them to `deprecated/`, or add a repo-owned post-link
+  unlink step (the linker is upstream-owned).
+- `transcript_scan_self_contamination.md` gained the applied flag.
+
+## Recorded, no action
+
+- **Corrections** (28): one standing-rule gap, the attribution removal (2da15f9e, twice on
+  2026-09-14), decided twice already as trading-framework only. 3 covered by rules written from the
+  incident (`git-add-all`, rebase-over-merge, the OpenCLI memory), the rest task steering, menu
+  picks, or first prompts after `/clear`. Jev caught 2 of 16 regex rows; the regex stays the
+  correction detector.
+- **Nudges** (24): 4 spend limits, 4 machine sleeps, 1 ENOTFOUND, 5 completed-report re-runs or
+  background waits, 7 not nudges, 1 hung live-order rerun without `--dry-run` (fc8d5950,
+  trading-framework, once), plus the two classifier stops in finding 4.
+- **Repeats** (18): 16 distinct tasks behind the same closing phrases ("create atomic commits and
+  PR" 11, "apply all" 8, "commit" 5), 2 echoes (finding 3 and a pasted bench loop, e4fc4553).
+- **Research**: `research-skill` fired 5 times since it landed; the three verified "applies"
+  (73c2a7cc, 8d194c25, 9159f692) all predate it. Working.
+- **Babysit split**: `babysit-skill` fired twice, `rebase-pr` loaded twice, `babysit-pr` once since
+  2026-09-29. Too new to judge.
+- **Skill table**: `subagent-routing` 95 loads in 19 projects, `implement-with-subagent` 34,
+  `commit-with-subagent` 33 (`commit-contract` fired 18 times); `perf-measurement` 37 worker loads;
+  `rebase-babysit` 16 worker loads before the split. `lint` 25 typed is a trading-framework command.
+- **Long prompts** (15): pasted logs and bench output, the diagram style guide (a220a23f, repeat),
+  two "Translation 50-min check" fork echoes. No re-explained instruction set.
+- **Jev calibration**: 14 new labels (131 of 145 brief items were already in the store from
+  2026-09-29); gaps >= 0.8 band 7/10, 0.5 to 0.8 band 13/40, threshold still "not enough labels".
+  The >= 0.8 band now holds only the audit sample, so it grows by one item per five settled.
+
+## Handed to the user (rules engine, self-modification block)
+
+- `skill-mention.md`: remove `retro` from the alternation (finding 7).
+- New `verify-state-skill.md` (finding 5), content: `event: UserPromptSubmit`,
+  `match: ^\W*verify (current )?(state|states|status)\b`, a condition on non-empty `liveAgents`
+  in session state, body "Call the Skill tool with `agent-status` before polling anything: it owns
+  the live/quiet/stale verdict per unit of work."
+
+## Applied 2026-10-01
+
+All in this repo, uncommitted at the time of writing, on `personal`:
+
+| Where | Change |
+|---|---|
+| `retro/scripts/retro-scan.ts` | `--exclude`, `SKILL_ALIASES`, `SKILL_SINCE`, echo threshold 80, self-check cases for each; `selfcheck ok` |
+| `retro/SKILL.md` | user-invoked frontmatter; `SID` and `--exclude` in step 1; gap eligibility paragraph; rules-engine worktree route in step 4; echo threshold text |
+| `retro/agents/openai.yaml` | new, `allow_implicit_invocation: false` |
+| `agent-status/SKILL.md` | "verify current state/status" triggers; the two em-dashes on that line rewritten |
+| `commit-with-subagent/SKILL.md` | non-HEAD amend paragraph |
+| `README.md`, `skills/howardism/README.md` | retro moved to User-invoked |
+| `.changeset/` | `retro-user-invoked.md`, `retro-scan-exclude-and-aliases.md`, `agent-status-and-commit-gotchas.md` |
+| memory | three files updated (finding 8) |
+
 # Retro: 2026-08-30 to 2026-09-29, with a skill-usage focus
 
 Scope: 30-day scan by `retro-scan.ts` (1,141 rows, 612 hand-typed after the noise filter; Jev
