@@ -3,7 +3,8 @@
 // Owns the noise filter (harness rows, skill markers, command bodies, goals) and every tally
 // the retro reads: skill usage, corrections, nudges, repeats, long prompts, keyword→skill gaps.
 //
-//   bun retro-scan.ts [--days N] [--project sub] [--prompts file] [--cap N] [--briefs dir] [--per-brief N] [--no-jev] [--jev-act x] [--verify-all] [--selfcheck]
+//   bun retro-scan.ts [--days N] [--project sub] [--exclude sid,sid] [--prompts file] [--cap N] [--briefs dir] [--per-brief N] [--no-jev] [--jev-act x] [--verify-all] [--selfcheck]
+// `--exclude` drops every row of the named sessions (prefix match on the session id): the retro's own session, whose prompts name the skills it is auditing.
 //
 // `--prompts file` reuses a saved `chatlog prompts --include-agents --width 0` dump instead of rescanning.
 // `--briefs dir` also writes one worker brief per non-empty verification bucket
@@ -67,6 +68,18 @@ const SKILL_KEYWORDS: Record<string, RegExp> = {
   "research": /\bresearch\b/i,
   "writing-for-agents": /\b(skill|claude\.md|agents\.md|standing rule)\b/i,
   "resolving-merge-conflicts": /\bconflicts?\b/i,
+};
+// A skill renamed or split keeps its gap history: a marker for the old name counts as a load of the new one.
+const SKILL_ALIASES: Record<string, string[]> = {
+  "rebase-pr": ["rebase-babysit"],
+  "babysit-pr": ["rebase-babysit"],
+  "commit-with-subagent": ["commit-and-pr-with-sonnet"],
+  "implement-with-subagent": ["implement-plan-with-sonnet"],
+};
+// A prompt older than the skill is not a gap: nothing could have loaded. Birth dates from git.
+const SKILL_SINCE: Record<string, string> = {
+  "agent-status": "2026-09-16",
+  "disk-cleanup": "2026-09-16",
 };
 
 // --- jev --------------------------------------------------------------------
@@ -296,9 +309,9 @@ function harnessProjectsOf(rows: Row[]): Set<string> {
   );
 }
 // A ScheduleWakeup (/loop) tick re-sends the user's prompt verbatim every interval, so one hand-typed bootstrap
-// shows up as N identical long rows in one session. Keep the first, drop the echoes. Short prompts ("resume",
-// "continue") are genuinely retyped and stay.
-export const ECHO_MIN_CHARS = 150, ECHO_MIN_REPEATS = 3;
+// shows up as N identical rows in one session. Keep the first, drop the echoes. Short prompts ("resume",
+// "continue") are genuinely retyped and stay; a 100-character status poll typed three times is a tick.
+export const ECHO_MIN_CHARS = 80, ECHO_MIN_REPEATS = 3;
 const echoKey = (r: Row) => r.sid + "\0" + r.text.replace(/\s+/g, " ").trim().toLowerCase().slice(0, 120);
 export function dropAutomationEchoes(rows: Row[]): { rows: Row[]; dropped: number } {
   const n = new Map<string, number>();
@@ -313,6 +326,15 @@ export function dropAutomationEchoes(rows: Row[]): { rows: Row[]; dropped: numbe
     seen.add(k); return true;
   });
   return { rows: kept, dropped };
+}
+// `--exclude a1b2c3d4,...`: every row of those sessions goes, worker rows included (prefix match, so the
+// 8-character id the tables print is enough).
+export function excludeSessions(rows: Row[], list: string): { rows: Row[]; dropped: number; sessions: number } {
+  const ids = list.split(",").map((x) => x.trim()).filter(Boolean);
+  if (!ids.length) return { rows, dropped: 0, sessions: 0 };
+  const hit = new Set<string>();
+  const kept = rows.filter((r) => { const m = ids.some((id) => r.sid.startsWith(id)); if (m) hit.add(r.sid); return !m; });
+  return { rows: kept, dropped: rows.length - kept.length, sessions: hit.size };
 }
 // The rows report() treats as hand-typed: the set Jev classifies.
 export function handRows(rows: Row[]): Row[] {
@@ -428,23 +450,29 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
   // Keyword → skill gaps
   out.push("\n## Keyword→skill gaps (prompt names the job, session never loaded the skill)");
   type GapItem = { skill: string; row: Row; tag: Tag; score: number | undefined; settled: boolean; audit: boolean };
-  const perSkill: { skill: string; hits: Row[]; gaps: Row[]; m?: Merged; items: GapItem[]; score: (r: Row) => number | undefined }[] = [];
+  const perSkill: { skill: string; hits: Row[]; gaps: Row[]; predates: number; m?: Merged; items: GapItem[]; score: (r: Row) => number | undefined }[] = [];
   for (const [skill, re] of Object.entries(SKILL_KEYWORDS)) {
-    const hits = hand.filter((r) => re.test(r.text));
-    const gaps = hits.filter((r) => !loadedIn(r.sid, skill));
+    const since = SKILL_SINCE[skill];
+    const names = [skill, ...(SKILL_ALIASES[skill] ?? [])];
+    const loaded = (r: Row) => names.some((n) => loadedIn(r.sid, n));
+    const eligible = since ? hand.filter((r) => r.ts >= since) : hand;
+    const predates = since ? hand.filter((r) => r.ts < since && re.test(r.text) && !loaded(r)).length : 0;
+    const hits = eligible.filter((r) => re.test(r.text));
+    const gaps = hits.filter((r) => !loaded(r));
     const score = (r: Row) => (V?.get(r)?.skill === skill ? V.get(r)!.skillConf : undefined);
     if (V) {
-      const m = merge(gaps, hand.filter((r) => !loadedIn(r.sid, skill)), score, Math.min(cap, 6), act);
+      const m = merge(gaps, eligible.filter((r) => !loaded(r)), score, Math.min(cap, 6), act);
       const items = m.brief.map(({ row, tag }) => ({ skill, row, tag, score: score(row), settled: !opts.verifyAll && (score(row) ?? 0) >= act, audit: false }));
-      perSkill.push({ skill, hits, gaps, m, items, score });
-    } else perSkill.push({ skill, hits, gaps, items: gaps.slice(0, Math.min(cap, 6)).map((row) => ({ skill, row, tag: { kind: null }, score: undefined, settled: false, audit: false })), score });
+      perSkill.push({ skill, hits, gaps, predates, m, items, score });
+    } else perSkill.push({ skill, hits, gaps, predates, items: gaps.slice(0, Math.min(cap, 6)).map((row) => ({ skill, row, tag: { kind: null }, score: undefined, settled: false, audit: false })), score });
   }
   // Settled items stay out of the briefs, except the audit sample that keeps top-band labels coming.
   perSkill.flatMap((p) => p.items).filter((it) => it.settled).forEach((it, i) => { it.audit = isAudit(i); });
-  for (const { skill, hits, gaps, m, items, score } of perSkill) {
+  for (const { skill, hits, gaps, predates, m, items, score } of perSkill) {
+    const pre = predates ? ` (${predates} older than the skill, ${SKILL_SINCE[skill]}, dropped)` : "";
     if (m) {
-      if (!hits.length && !m.brief.length) continue;
-      out.push(`- ${skill}: ${gaps.length} gap / ${hits.length} hit`);
+      if (!hits.length && !m.brief.length && !predates) continue;
+      out.push(`- ${skill}: ${gaps.length} gap / ${hits.length} hit${pre}`);
       out.push(`    gaps: ${m.line}`);
       examples(m, "    ", (r) => `${r.ts.slice(0, 16)} ${short(r.project)} ${r.sid}${score(r) === undefined ? "" : ` jev ${score(r)!.toFixed(2)}`} :: ${one(r.text, 90)}`);
       const done = items.filter((it) => it.settled);
@@ -453,8 +481,8 @@ export function report(allRows: Row[], days: number, cap: number, ledger: string
         for (const it of done.slice(0, cap)) out.push(`      ${it.row.ts.slice(0, 16)} ${short(it.row.project)} ${it.row.sid} jev ${it.score!.toFixed(2)}${it.audit ? " audit" : ""} :: ${one(it.row.text, 90)}`);
       }
     } else {
-      if (!hits.length) continue;
-      out.push(`- ${skill}: ${gaps.length} gap / ${hits.length} hit`);
+      if (!hits.length && !predates) continue;
+      out.push(`- ${skill}: ${gaps.length} gap / ${hits.length} hit${pre}`);
       for (const { row: r } of items) out.push(`    ${r.ts.slice(0, 16)} ${short(r.project)} ${r.sid} :: ${one(r.text, 90)}`);
     }
     for (const it of items) {
@@ -578,6 +606,18 @@ if (import.meta.main) {
     const tick = (w: string) => `Check on the five PR rebase agents (see the list in the last status block) and integrate whatever finished into the stack, then report which branches are still red${w}`;
     const near = dropAutomationEchoes([1, 2, 3].map((i) => ({ ts: `2026-09-01T0${i}:00`, project: "-Users-x-proj", sid: "s4", text: tick(["", " now", ", thanks."][i - 1]) })));
     console.assert(near.dropped === 2 && near.rows.length === 1, `near-duplicate echoes ${near.dropped}/${near.rows.length}`);
+    const poll = "Check on the five PR rebase agents (pr1368, pr1358, pr1380, pr1330, pr1331) and integrate whatever finished";
+    const short3 = dropAutomationEchoes([1, 2, 3].flatMap((i) => [{ ts: `2026-09-01T0${i}:00`, project: "-Users-x-proj", sid: "s5", text: poll }, { ts: `2026-09-01T0${i}:30`, project: "-Users-x-proj", sid: "s5", text: "continue" }]));
+    console.assert(short3.dropped === 2 && short3.rows.filter((r) => r.text === "continue").length === 3, `short poll echoes ${short3.dropped}`);
+    const ex = excludeSessions([{ ts: "2026-09-01T00:00", project: "p", sid: "ea447cfe", text: "a" }, { ts: "2026-09-01T00:01", project: "p", sid: "ea447cfe", text: "[skill:retro]", agent: true }, { ts: "2026-09-01T00:02", project: "p", sid: "b1", text: "b" }], "ea447c, zz");
+    console.assert(ex.dropped === 2 && ex.sessions === 1 && ex.rows.length === 1 && excludeSessions(ex.rows, "").dropped === 0, `excludeSessions ${ex.dropped}/${ex.sessions}`);
+    const aliasRep = report([
+      { ts: "2026-09-10T00:00", project: "-Users-x-proj", sid: "al1", text: "[skill:rebase-babysit]" },
+      { ts: "2026-09-10T00:01", project: "-Users-x-proj", sid: "al1", text: "rebase the branch and force push" },
+      { ts: "2026-09-10T00:02", project: "-Users-x-proj", sid: "al2", text: "verify states, it seems stuck" },
+      { ts: "2026-09-20T00:02", project: "-Users-x-proj", sid: "al3", text: "verify states, it seems stuck" },
+    ], 30, 5, "/nonexistent").text;
+    console.assert(aliasRep.includes("- rebase-pr: 0 gap / 1 hit") && aliasRep.includes("- agent-status: 1 gap / 1 hit (1 older than the skill, 2026-09-16, dropped)"), `aliases and since: ${aliasRep.split("\n").filter((l) => /rebase-pr|agent-status/.test(l)).join(" | ")}`);
     console.assert(isAnswer("Force-push the branch?") && isAnswer("Pick one:\n1. rebase\n2. merge") && isAnswer("Want me to apply it") && isAnswer("- a\n- b") === true, "isAnswer positives");
     console.assert(!isAnswer("API Error: 529 Overloaded") && !isAnswer("Usage limit reached, resets at 5pm") && !isAnswer("Sleeping 270s until the next check.") && !isAnswer("Done. All checks pass.") && !isAnswer(undefined), "isAnswer negatives");
     const nrep = report([
@@ -657,7 +697,9 @@ if (import.meta.main) {
       if (proc.exitCode !== 0) process.exit(proc.exitCode);
       dump = proc.stdout.toString();
     }
-    const echo = dropAutomationEchoes(parsePrompts(dump));
+    const excl = excludeSessions(parsePrompts(dump), arg("exclude", ""));
+    if (excl.dropped) console.error(`excluded ${excl.dropped} rows from ${excl.sessions} sessions (--exclude)`);
+    const echo = dropAutomationEchoes(excl.rows);
     const rows = echo.rows;
     if (echo.dropped) console.error(`dropped ${echo.dropped} automation echoes (same long prompt prefix >= ${ECHO_MIN_REPEATS}x in one session)`);
     const act = Number(arg("jev-act", String(JEV_ACT)));
