@@ -1,6 +1,6 @@
 ---
 name: agent-status
-description: Audit every unit of running work a session owns — in-process subagents, background Bash tasks, agent-bridge sessions, remote runs — and give each a live/quiet/stale verdict with the action taken. Use when the user asks to "verify states", "check if any are stuck", says a run "seems stale" or "seems stuck", asks why something "takes this long", wants idle agents cleared, or says "resume all subagents".
+description: Audit every unit of running work a session owns (in-process subagents, background Bash tasks, agent-bridge sessions, remote runs) and give each a live/quiet/stale verdict with the action taken. Use when the user asks to "verify states", "verify current state" or "verify current status" while work is in flight, "check if any are stuck", says a run "seems stale" or "seems stuck", asks why something "takes this long", wants idle agents cleared, or says "resume all subagents".
 ---
 
 # Agent status

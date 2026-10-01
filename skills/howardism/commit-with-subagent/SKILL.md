@@ -50,6 +50,14 @@ checks. An out-of-scope hook rewrite is a blocker, not permission to absorb it o
 discard another writer's work. No bypassed hooks, blanket staging, or automatic
 reset/force-push recovery.
 
+An amend of a commit below HEAD runs without an editor as `git commit
+--fixup=amend:<sha> -F <file>` followed by `GIT_SEQUENCE_EDITOR=true git rebase
+--autosquash <base>`. The file opens with `amend! <target's exact subject>`, a
+blank line, then the complete new message; autosquash discards that first line,
+so a file holding only the new message loses its subject. `git rebase -i`, even
+with a scripted sequence editor, and `commit-tree`/`update-ref` plumbing are
+denied by the auto-mode classifier. Verify with `git show --format=%B <sha>`.
+
 ## Verify, then publish if requested
 
 After the worker returns, the root inspects every new commit and the aggregate
