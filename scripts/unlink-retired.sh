@@ -13,7 +13,7 @@ set -euo pipefail
 # or a hand-made link under the same name is left alone. Re-run is a no-op.
 
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
-DESTS=("$HOME/.claude/skills" "$HOME/.agents/skills")
+DESTS=("$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skills")
 
 # Retired 2026-09-01: zero loads in the transcript corpus then, and still zero in
 # the 30 days to 2026-10-01 after a linker run had silently restored them.
