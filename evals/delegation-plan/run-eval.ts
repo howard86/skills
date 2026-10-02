@@ -252,7 +252,15 @@ async function runCase(c: Case, ctx: Record<string, any>): Promise<Run> {
       { EVAL_SPAWN_LOG: spawnLog, EVAL_GUARD_LOG: guardLog, EVAL_CLONE_DIR: clone },
       clone, Math.max(60, (ctx.timeoutS || 1800) - 30) * 1000);
     const events = out.split('\n').filter(l => l.trim()).flatMap(l => { try { return [JSON.parse(l)]; } catch { return []; } });
-    const result = events.find(e => e.type === 'result');
+    // Keep the raw stream beside the traces: it is the only record of a run
+    // whose result looks wrong, and the clone is deleted below.
+    const streams = join(ctx.flow, ctx.variant, 'streams');
+    mkdirSync(streams, { recursive: true });
+    writeFileSync(join(streams, `${c.id}-${work.slice(-8)}.jsonl`), out);
+    // A Stop hook that blocks the first stop continues the session, and each
+    // stop emits its own result event: the last one closes the run.
+    const results = events.filter(e => e.type === 'result');
+    const result = results.at(-1);
     if (!result) {
       const e: any = new Error(`claude exited ${code} without a result: ${err.slice(-400)}`);
       e.failure_class = /overloaded|rate.?limit|529|429/i.test(err) ? 'serving' : 'harness';
