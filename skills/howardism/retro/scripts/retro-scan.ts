@@ -95,7 +95,7 @@ const SKILL_JOBS: Record<keyof typeof SKILL_KEYWORDS, string> = {
   "rebase-pr": "Rebase a PR branch onto its remote base, resolve conflicts, and force-push.",
   "babysit-pr": "Watch a PR's CI and review threads through merge-ready, merge, or closure.",
   "commit-with-subagent": "Turn finished, approved changes into atomic commits, and push or open a draft PR when asked.",
-  "implement-with-subagent": "Hand an approved implementation plan to a subagent worker, then verify and integrate its result.",
+  "implement-with-subagent": "Split an approved implementation plan into packages, delegate one subagent worker per package, then verify and integrate the result.",
   "perf-": "Make code faster or cheaper: algorithmic wins, hot-path API shape, benchmarking and profiling, allocation and memory cuts, or stripping logging and indirection overhead.",
   "chat-history": "Search past session transcripts for an earlier decision, fix, error, or prompt.",
   "disk-cleanup": "Reclaim disk space on this Mac: large or unused files, stale worktrees, build caches.",
