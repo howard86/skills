@@ -28,7 +28,10 @@ state, or arrange exclusive in-place ownership. Preserve the original checkout.
 A **package** is a set of plan items whose files no other package touches. Items
 that share a file (a lockfile, a generated artifact, a shared module) form one
 package. Order packages by dependency: a package that builds on another's code, or
-a phase the plan places after another, waits for it.
+a phase the plan places after another, waits for it. Dependency is by contract,
+not only by file: a package that calls, documents, or wires up another package's
+interface (a CLI's docs, a caller of a new function) waits for it, unless the plan
+fixes that interface's exact shape up front.
 
 Every package with no unmet dependency launches in the same turn, one worker each,
 in its own worktree or with an exclusive path list. The rest launch as their
@@ -52,9 +55,15 @@ implementer tier. A model the user named overrides all of this.
 
 ## Brief each worker
 
-Give each worker the approved plan items for its package, its exclusive file
-ownership, and the packages running beside it. Keep useful, non-conflicting root
-work moving while workers run.
+Give each worker the approved plan items for its package and two labelled fields:
+
+```text
+Ownership: <worktree>; <the paths this worker alone may change>
+Siblings: <each other package's paths>, read-only, owned by another worker
+```
+
+Keep sibling paths out of the `Ownership:` line, so the worker never reads them as
+its own. Keep useful, non-conflicting root work moving while workers run.
 
 Require the smallest change that satisfies the plan, surrounding style, and
 targeted behavioral checks. Assign validation explicitly: the worker runs checks
