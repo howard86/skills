@@ -50,7 +50,8 @@ or report the resolution as unknown.
 
 ## Ownership and evidence
 
-Parallelize independent reads first; integrate through one writer where practical.
+Parallelize independent reads, and writers whose files do not overlap; work that
+shares files goes through one writer.
 Test runs that modify snapshots, generated files, fixtures, or databases count as
 writes. Use exclusive paths or separate worktrees for writers. Configure a reviewer
 read-only through its harness's enforcing field:
@@ -67,7 +68,8 @@ The root waits for every result needed by the next decision, verifies consequent
 claims against source and observed output, resolves disagreements with evidence,
 and inspects the final diff. Security, concurrency, database, infrastructure,
 authentication, authorization, payment, and trading changes receive independent
-review unless trivial. Select an arbiter from the running harness reference when
+review unless trivial. Risk raises that reviewer's tier, not the implementer's: a
+settled change in a risky area is still implementer-tier work. Select an arbiter from the running harness reference when
 judgment remains necessary.
 
 ## Required result

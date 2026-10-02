@@ -10,17 +10,18 @@ session importing Claude instructions must use its own branch instead.
 | Role | Starting choice | Escalation |
 | --- | --- | --- |
 | Pure tallies, fetches, narrow extraction | `haiku`; inherited effort | `sonnet` |
-| Scoped implementation, tests, ordinary commit grouping | `sonnet`; `medium` where an agent definition sets effort | `opus` |
-| Difficult design, diagnosis, high-risk review | `opus` | `fable` only if explicitly selected/authorized and available |
+| Scoped implementation, tests, ordinary commit grouping | `sonnet`; `medium` where an agent definition sets effort | `opus` when the package leaves a design decision open or a `sonnet` attempt failed on substance |
+| Difficult design, diagnosis, high-risk review (not the implementation of a settled package, whatever its risk) | `opus` | `fable` only if explicitly selected/authorized and available |
 
 The router's `scripts/route.ts` picks the starting choice from the brief; this
 table remains the escalation guide and the fallback when the script is unavailable.
 
 `opus` resolves to Opus 5.5 from v2.1.280, the account default on every plan
 except Foundry. Its default effort is `medium`, one level below every other
-model's `high`, and its per-token price sits below Opus 5, so the cost gap that
-once argued for `sonnet` on implementation has narrowed. Judge cost per completed
-task, and improve the brief before raising effort or tier.
+model's `high`, and its per-token price sits below Opus 5. The narrower price gap
+leaves settled implementation on `sonnet`, one worker per package, so a
+multi-package plan runs in parallel rather than serially inside one `opus` worker.
+Judge cost per completed task, and improve the brief before raising effort or tier.
 
 Use provider-resolved aliases from the current model picker: `default`, `best`
 (Fable where available, otherwise Opus), `fable`, `sonnet`, `opus`, `haiku`,
@@ -72,10 +73,11 @@ brief. `name` makes a worker addressable through `SendMessage` and resumable
 after it finishes.
 
 The session model shapes delegation appetite. Opus 5 and 5.5 reach for workers
-readily: keep spawn counts low, brief once, and commit to the delegation rather
-than re-deriving a returned result. Fable 5.1 sustains asynchronous parallel
-workers: name them, keep root work moving while they run, and intervene when one
-drifts or lacks context; a fresh-context verifier outperforms self-critique there.
+readily: match spawns to packages (one worker each, no extra scouts or duplicate
+checks), brief once, and commit to the delegation rather than re-deriving a
+returned result. Fable 5.1 sustains asynchronous parallel workers: name them,
+keep root work moving while they run, and intervene when one drifts or lacks
+context; a fresh-context verifier outperforms self-critique there.
 
 Nesting depth defaults to 3 (`CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH`) and
 concurrency to 20 (`CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS`). A background worker
