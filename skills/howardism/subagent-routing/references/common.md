@@ -4,7 +4,8 @@
 
 Use the fewest workers needed for independent bounded work, noisy exploration,
 or independent review. Keep small sequential changes with the root when a handoff
-adds more work than it removes. A user explicitly requesting delegation supplies
+adds more work than it removes; for an approved implementation plan, that is one
+package of at most 3 files, or a design decision still open. A user explicitly requesting delegation supplies
 that workflow preference; explain a runtime blocker rather than silently claiming
 root work was delegated. Further delegation requires root authorization and
 runtime support.
@@ -18,6 +19,7 @@ Role and mode: harness, requested model/effort, read-only or write-enabled
 Objective: one outcome and why the root needs it
 Context: relevant plan/spec, files, symbols, errors, and starting commit
 Ownership: absolute repo/worktree, permitted files or hunks, index owner
+Siblings: parallel writers' paths, read-only to this worker (writers only)
 Constraints: compatibility, excluded work, publication authority
 Deliverable: patch, decision, commits, or evidence
 Validation: required commands and who runs each
