@@ -189,6 +189,11 @@ function prepare(c: Case, work: string) {
   mkdirSync(work, { recursive: true });
   const git = (...a: string[]) => execFileSync('git', a, { stdio: ['ignore', 'ignore', 'pipe'] });
   git('clone', '--quiet', '--shared', '--no-checkout', c.repo, clone);
+  // git 2.55's --shared wrote no alternates file, so the clone held only objects
+  // reachable from refs: a session's base on a since-deleted branch was missing.
+  // Point the clone at the source's whole object store explicitly.
+  const common = execFileSync('git', ['-C', c.repo, 'rev-parse', '--path-format=absolute', '--git-common-dir'], { encoding: 'utf8' }).trim();
+  writeFileSync(join(clone, '.git', 'objects', 'info', 'alternates'), join(common, 'objects') + '\n');
   git('-C', clone, 'checkout', '--quiet', '--detach', c.commit);
   // No remote: a push or fetch from the replayed root must not reach the real repo.
   git('-C', clone, 'remote', 'remove', 'origin');
