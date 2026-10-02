@@ -67,6 +67,26 @@ describe("gradeCase", () => {
     expect(g.grade.solo_ok).toBe(0);
   });
 
+  test("root work left in the clone or committed fails solo_ok without an edit tool call", async () => {
+    const spawns = [impl(1), impl(2), impl(3)];
+    const dirty = await gradeCase(parallel, { ...run(spawns), end: { dirty: ["src/lib.rs"], commits: 0 } });
+    expect(dirty.grade.solo_ok).toBe(0);
+    const committed = await gradeCase(parallel, { ...run(spawns), end: { dirty: [], commits: 2 } });
+    expect(committed.grade.solo_ok).toBe(0);
+    const clean = await gradeCase(parallel, { ...run(spawns), end: { dirty: [], commits: 0 } });
+    expect(clean.grade.solo_ok).toBe(1);
+  });
+
+  test("disjointness reads the Ownership field, not the sibling list", async () => {
+    const owned = (i: number, mine: string, theirs: string): Spawn => ({ ...impl(i),
+      brief: `Role and mode: write-enabled implementer.\nWorkspace: /private/tmp/wt-shared\n` +
+        `Ownership: ${mine}\nSiblings: ${theirs} (read-only, owned by another worker)\nConstraints: do not commit.` });
+    const g = await gradeCase({ ...parallel, start: 2 }, run([owned(1, "src/a.ts", "src/b.ts"), owned(2, "src/b.ts", "src/a.ts")]));
+    expect(g.grade.disjoint_ok).toBe(1);
+    const clash = await gradeCase({ ...parallel, start: 2 }, run([owned(1, "src/a.ts", "src/b.ts"), owned(2, "src/a.ts", "src/b.ts")]));
+    expect(clash.grade.disjoint_ok).toBe(0);
+  });
+
   test("user-requested model overrides the open-decision rule", async () => {
     const g = await gradeCase({ ...single, user_model: "sonnet", opus_ok: 1 }, run([impl(1, "opus")]));
     expect(g.grade.tier_ok).toBe(0);

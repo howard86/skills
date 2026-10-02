@@ -149,9 +149,10 @@ import { rmSync, readdirSync } from 'node:fs';
 
 const EVAL_DIR = dirname(fileURLToPath(import.meta.url));
 const WORK_ROOT = process.env.EVAL_WORK_ROOT ?? '/private/tmp/claude-501/delegation-plan-eval';
+// A runaway replay stops at the turn cap or the wall-clock ceiling. No
+// --max-budget-usd: the cap is visible to the root, which shrank its scope to
+// fit ("This session started with $8...") where the real session had no limit.
 const MAX_TURNS = 60;
-// Per-case spend cap passed to claude -p; a runaway replay stops here, not at the bill.
-const MAX_USD = process.env.EVAL_MAX_USD ?? '8';
 const PROJECTS = join(homedir(), '.claude', 'projects');
 const projectSlug = (p: string) => p.replace(/[^a-zA-Z0-9]/g, '-');
 
@@ -197,6 +198,11 @@ function prepare(c: Case, work: string) {
   git('-C', clone, 'checkout', '--quiet', '--detach', c.commit);
   // No remote: a push or fetch from the replayed root must not reach the real repo.
   git('-C', clone, 'remote', 'remove', 'origin');
+  // The clone's branches and tags point at the source's current tips, the
+  // session's future: one root found its plan "already merged into your local
+  // develop" and stopped. Keep only the detached HEAD.
+  const refs = execFileSync('git', ['-C', clone, 'for-each-ref', '--format=delete %(refname)'], { encoding: 'utf8' });
+  if (refs.trim()) execFileSync('git', ['-C', clone, 'update-ref', '--stdin'], { input: refs, stdio: ['pipe', 'ignore', 'pipe'] });
 
   const recs = readJsonl(findSession(c.session));
   const idx = recs.findIndex(r => r.uuid === c.trigger_uuid);
@@ -248,7 +254,7 @@ async function runCase(c: Case, ctx: Record<string, any>): Promise<Run> {
     const { code, out, err } = await claudeRun(
       ['-p', ...(sid ? ['--resume', sid, '--fork-session'] : []), '--model', model, '--permission-mode', 'bypassPermissions',
        '--settings', settings, '--output-format', 'stream-json', '--verbose',
-       '--max-turns', String(MAX_TURNS), '--max-budget-usd', MAX_USD, c.prompt],
+       '--max-turns', String(MAX_TURNS), c.prompt],
       { EVAL_SPAWN_LOG: spawnLog, EVAL_GUARD_LOG: guardLog, EVAL_CLONE_DIR: clone },
       clone, Math.max(60, (ctx.timeoutS || 1800) - 30) * 1000);
     const events = out.split('\n').filter(l => l.trim()).flatMap(l => { try { return [JSON.parse(l)]; } catch { return []; } });
@@ -262,14 +268,18 @@ async function runCase(c: Case, ctx: Record<string, any>): Promise<Run> {
     const results = events.filter(e => e.type === 'result');
     const result = results.at(-1);
     if (!result) {
-      const e: any = new Error(`claude exited ${code} without a result: ${err.slice(-400)}`);
-      e.failure_class = /overloaded|rate.?limit|529|429/i.test(err) ? 'serving' : 'harness';
+      // A stream that ends in api_retry events was killed mid retry storm: the
+      // API, not the harness, kept the root from finishing.
+      const last = events.filter(e => e.subtype !== 'thinking_tokens').at(-1);
+      const storm = last?.subtype === 'api_retry';
+      const e: any = new Error(`claude exited ${code} without a result${storm ? ` during API retries (attempt ${last.attempt})` : ''}: ${err.slice(-400)}`);
+      e.failure_class = storm || /overloaded|rate.?limit|529|429/i.test(err) ? 'serving' : 'harness';
       if (/overloaded|rate.?limit/i.test(err)) e.status = 529;
       throw e;
     }
     // A run that never got going (resume failure, CLI error) is plumbing, not a
     // delegation decision: it must not be scored as "no workers launched".
-    if (result.subtype !== 'success' && result.subtype !== 'error_max_turns' && result.subtype !== 'error_max_budget_usd' || !result.num_turns) {
+    if (result.subtype !== 'success' && result.subtype !== 'error_max_turns' || !result.num_turns) {
       const e: any = new Error(`claude result ${result.subtype}, ${result.num_turns} turns: ${JSON.stringify(result.errors ?? result.result ?? '').slice(0, 400)} ${err.slice(-400)}`);
       e.failure_class = 'harness';
       throw e;
@@ -304,7 +314,7 @@ async function runCase(c: Case, ctx: Record<string, any>): Promise<Run> {
     return {
       model: served[0]?.[0] === model || !served.length ? model : served[0][0],
       usage: result.usage, stop_reason: result.subtype === 'success' ? 'end_turn' : result.subtype,
-      status: 'ok', transcript, spawns, guard, clone,
+      status: 'ok', transcript, spawns, guard, clone, end: rootChanges(clone, c.commit),
       output: JSON.stringify(spawns.map(s => ({ model: s.input.model ?? null, type: s.input.subagent_type, description: s.input.description })), null, 2),
       perf: { turns: result.num_turns, cli_cost_usd: result.total_cost_usd, guard_denials: guard.filter(g => g.deny).length },
     };
@@ -314,6 +324,25 @@ async function runCase(c: Case, ctx: Record<string, any>): Promise<Run> {
     rmSync(projDir, { recursive: true, force: true });
     rmSync(work, { recursive: true, force: true });
   }
+}
+
+// Every spawn is denied, so whatever the clone and its worktrees hold at the end
+// is the root's own work, however it was written: Edit, a heredoc, `sed -i`, or
+// a `git commit`.
+export function rootChanges(clone: string, base: string) {
+  const git = (dir: string, ...a: string[]) => execFileSync('git', ['-C', dir, ...a], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+  const trees = git(clone, 'worktree', 'list', '--porcelain').split('\n')
+    .filter(l => l.startsWith('worktree ')).map(l => l.slice('worktree '.length));
+  const dirty: string[] = [], heads: string[] = [];
+  for (const t of trees) {
+    try {
+      heads.push(git(t, 'rev-parse', 'HEAD').trim());
+      for (const l of git(t, 'status', '--porcelain').split('\n').filter(Boolean))
+        dirty.push(t === clone ? l.slice(3) : `${t}: ${l.slice(3)}`);
+    } catch {} // a worktree the root already removed
+  }
+  const commits = +git(clone, 'rev-list', '--count', '--all', ...heads, '--not', base).trim();
+  return { dirty, commits };
 }
 
 // A brief is the spawn prompt plus any brief file it points the worker at.
@@ -350,9 +379,25 @@ function workspaceOf(brief: string): string | undefined {
   const m = brief.match(/(?:workspace|worktree|work only inside|working directory|cwd)[^\n]{0,80}?(\/(?:private\/)?(?:tmp|Users)\/[\w.\/@-]+)/i);
   return m?.[1]?.replace(/[.,;:)]+$/, '');
 }
+const PATH = /[\w@-]+(?:\/[\w.@*-]+)+|[\w-]+\.(?:rs|ts|tsx|js|mjs|md|py|toml|json|yaml|yml|sh|go)\b/g;
+const FIELD = /^\W*([A-Z][\w ]{0,30}?)\W*:/;
+// An `Ownership:` field (common contract) is the worker's own paths, read up to
+// the next field or blank line. Briefs without one fall back to ownership words,
+// skipping lines about siblings: v1's briefs list the packages beside a worker,
+// and their paths read as overlapping ownership.
 function ownedPaths(brief: string): Set<string> {
-  const lines = brief.split('\n').filter(l => /\b(own|owns|ownership|only (edit|touch|change))\b/i.test(l));
-  return new Set(lines.flatMap(l => l.match(/[\w@-]+(?:\/[\w.@*-]+)+|[\w-]+\.(?:rs|ts|tsx|js|mjs|md|py|toml|json|yaml|yml|sh|go)\b/g) ?? []));
+  const lines = brief.split('\n');
+  const field: string[] = [];
+  let inField = false;
+  for (const l of lines) {
+    const f = l.match(FIELD)?.[1];
+    if (f) inField = /^ownership$/i.test(f.trim());
+    else if (!l.trim()) inField = false;
+    if (inField) field.push(l);
+  }
+  const owned = field.length ? field
+    : lines.filter(l => /\b(own|owns|ownership|only (edit|touch|change))\b/i.test(l) && !/\bsiblings?\b/i.test(l));
+  return new Set(owned.flatMap(l => l.match(PATH) ?? []));
 }
 
 /** Score the recorded spawns against the case's labelled packages. */
@@ -369,7 +414,8 @@ export async function gradeCase(c: Case, run: Run, _ref?: string | null, _ctx?: 
   const soloEdits = run.transcript.filter(t => t.role === 'tool_call' && /^(Edit|Write|NotebookEdit|MultiEdit)$/.test(t.name))
     .map(t => { try { return JSON.parse(t.content).file_path ?? ''; } catch { return ''; } })
     .filter(p => p.startsWith(run.clone + '/'));
-  const solo_ok = soloEdits.length ? 0 : 1;
+  const dirty: string[] = run.end?.dirty ?? [], rootCommits: number = run.end?.commits ?? 0;
+  const solo_ok = soloEdits.length || dirty.length || rootCommits ? 0 : 1;
   const commit_withheld = n ? (impl.every(sp => NO_COMMIT.test(sp.brief)) ? 1 : 0) : null;
   let disjoint_ok: number | null = null, disjointWhy = 'fewer than two implementers';
   if (n > 1) {
@@ -388,7 +434,10 @@ export async function gradeCase(c: Case, run: Run, _ref?: string | null, _ctx?: 
     explanation: {
       split_ok: `${n} implementer(s) launched, expected ${c.start} (${c.shape}, ${c.packages} package(s)); roles: ${run.spawns.map(role).join(', ') || 'no spawns'}`,
       tier_ok: c.user_model ? `user asked for ${c.user_model}; implementer models: ${models.join(', ')}` : `${nOpus} Opus implementer(s), ${c.opus_ok} allowed (startable packages with an open decision); models: ${models.join(', ') || 'none'}`,
-      solo_ok: soloEdits.length ? `root edited ${soloEdits.length} file(s) in the clone: ${soloEdits.slice(0, 3).join(', ')}` : 'root edited no project files',
+      solo_ok: solo_ok ? 'root edited no project files'
+        : [soloEdits.length && `root edited ${soloEdits.length} file(s) with edit tools: ${soloEdits.slice(0, 3).join(', ')}`,
+           dirty.length && `${dirty.length} changed path(s) at the end: ${dirty.slice(0, 3).join(', ')}`,
+           rootCommits && `root made ${rootCommits} commit(s)`].filter(Boolean).join('; '),
       commit_withheld: n ? impl.map(sp => NO_COMMIT.test(sp.brief) ? 'withheld' : `no commit ban in "${sp.input.description}"`).join('; ') : 'no implementers',
       disjoint_ok: disjointWhy,
     },

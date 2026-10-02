@@ -13,7 +13,7 @@ EVAL_ONLY=7b365773,f9386bf8 bun evals/delegation-plan/run-eval.ts ...   # a subs
 bun test evals/delegation-plan                                           # grader checks, no model calls
 ```
 
-The runner refuses to start until a person reviews the harness and passes `--approve-harness`. That records a sha over the runner, `cases.json` and both hooks, so any edit to them needs a fresh approval. Each case is capped at `EVAL_MAX_USD` (default 8) through `--max-budget-usd`.
+The runner refuses to start until a person reviews the harness and passes `--approve-harness`. That records a sha over the runner, `cases.json` and both hooks, so any edit to them needs a fresh approval. A runaway case stops at 60 turns or the `--timeout-s` ceiling. There is no spend cap, because the root can see `--max-budget-usd` and shrinks its scope to fit.
 
 Build the report with the claude-api skill's `build-report-lite.mjs` (or `build-report.mjs`) on the flow directory.
 
@@ -38,9 +38,9 @@ Labels came from Sonnet readers of each transcript, reviewed by hand:
 | `split_ok` (headline) | implementers launched together equal `start` exactly |
 | `tier_ok` | Opus implementers are at most `opus_ok`, or every implementer uses the model the user named |
 | `coverage` | continuous: min(launched, start) / start |
-| `solo_ok` | the root edits no project file itself |
+| `solo_ok` | the root changes no project file itself: no edit-tool write in the clone, no changed path left in the clone or its worktrees, no commit past the base |
 | `commit_withheld` | every implementer brief forbids committing (empty with no implementers) |
-| `disjoint_ok` | implementers get distinct workspaces or non-overlapping owned paths (empty below two) |
+| `disjoint_ok` | implementers get distinct workspaces or non-overlapping owned paths, read from each brief's `Ownership:` field when it has one (empty below two) |
 
 A spawn's role (implementer, reviewer, committer, other) comes from its description's leading verb, then from its brief. A spawn with no `model` runs on the root's model.
 
@@ -51,4 +51,6 @@ A spawn's role (implementer, reviewer, committer, other) comes from its descript
 - The sandbox blocked writes outside the clone and temp dirs, but its network allowlist merges with the user's own settings and let `api.github.com` through. The guard refuses `gh` and `git push` itself.
 - A guard that inferred writes from Bash command text denied reads (`git branch --show-current`, `2>/dev/null`) and steered roots off their real path. Bash writes are left to the sandbox.
 - `-p` exits when the turn ends, so the guard refuses background Bash and Monitor. Otherwise a root that waits on a background build ends the run before it delegates.
+- The clone keeps only its detached HEAD. A local branch at the source's current tip let one root find its plan "already merged".
+- A run killed while the CLI retries the API (its stream ends in `api_retry` events) is a `serving` failure, not `harness`.
 - The replayed prefix and the fork are deleted after each case, so they never enter the transcript corpus that chat-history and retro scan.
