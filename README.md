@@ -262,7 +262,7 @@ Skills I wrote myself, with no counterpart in the upstream fork.
 - **[bun-workspace-quality](./skills/howardism/bun-workspace-quality/SKILL.md)**: Code quality toolkit for Bun + Turborepo monorepos: Biome/ultracite lint, per-workspace typecheck, husky pre-commit/pre-push gates, GitHub Actions CI, typos, gitleaks, commitlint, Dependabot.
 - **[find-skills](./skills/howardism/find-skills/SKILL.md)**: Discover and install skills from the open agent-skills ecosystem.
 - **[chat-history](./skills/howardism/chat-history/SKILL.md)**: Search and replay past Claude Code transcripts and Codex rollouts from one bundled CLI.
-- **[implement-with-subagent](./skills/howardism/implement-with-subagent/SKILL.md)**: Delegate an approved plan using the running harness’s subagent reference, then verify and integrate the result.
+- **[implement-with-subagent](./skills/howardism/implement-with-subagent/SKILL.md)**: Split an approved plan into packages with disjoint files, delegate one worker per package in parallel, then verify and integrate the result.
 - **[commit-with-subagent](./skills/howardism/commit-with-subagent/SKILL.md)**: Delegate scoped atomic commits; verify before any requested push or draft PR.
 - **[subagent-routing](./skills/howardism/subagent-routing/SKILL.md)**: Resolve native delegation or an authorized Agent Bridge route, with supported models and clear ownership.
 - **[rebase-pr](./skills/howardism/rebase-pr/SKILL.md)**: Rebase a stale PR onto its remote base, resolve conflicts, verify, and force-push under an explicit lease.
