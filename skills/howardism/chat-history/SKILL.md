@@ -51,7 +51,7 @@ task, why did it stop). Brief:
 Role and mode: read-only reader, model <haiku|sonnet>; write nothing outside your scratch dir.
 Questions: <numbered, one answer each>
 Where: session id(s) <…>, or search terms <…> with --days N [--project sub]
-Tool: bun $S/scripts/chatlog.ts (search, show; add --tools for commands and errors; slice with --grep, --tail, --width; never dump a whole transcript)
+Tool: bun $S/scripts/chatlog.ts (search, show; add --tools for commands and errors; slice with --grep, --tail, --last (--width only shortens each message); never dump a whole transcript)
 Return, per question, at most 4 lines: the answer; the session id and timestamp of the message it came from; a quote of at most 30 words. "not found" plus the queries tried when nothing matches.
 ```
 
@@ -81,7 +81,7 @@ Output is one block per session: source, project, session id, absolute path, the
 bun $S/scripts/chatlog.ts show <session-id|path> [--grep re] [--tools] [--width N] [--tail N] [--last]
 ```
 
-Accepts a bare session UUID (resolved against both corpora) or a file path. `--grep` keeps only matching messages, `--tail N` the last N, `--width` truncates each message (default 600 chars, `--width 0` = no truncation). `--last` prints only the final assistant text message (tool traffic excluded). Use it to pull a spawned subagent's closing report. `--last` and `--tail` are mutually exclusive. Start narrow: full sessions are large.
+Accepts a bare session UUID (resolved against both corpora) or a file path. `--grep` keeps only matching messages, `--tail N` the last N, `--width` only shortens each message, it does not select any (default 600 chars, `--width 0` = no truncation). `--last` prints only the final assistant text message (tool traffic excluded). Use it to pull a spawned subagent's closing report. `--last` and `--tail` are mutually exclusive. Start narrow: full sessions are large.
 
 ## prompts
 
