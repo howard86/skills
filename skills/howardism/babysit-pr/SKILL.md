@@ -20,6 +20,8 @@ If the branch is behind its base or conflicting (confirmed against the compare A
    ```
    Branch on its **exit code**, not on re-reading status: `0` terminal and clean, `1` terminal with failures (named on stdout), `2` timed out still pending, `3` the head moved so a new push superseded this run (re-arm on the new SHA), `4` no checks ever registered (read the workflow's path filters). It refuses to call an empty check set "green", which is what a status pass straight after a force-push otherwise reports. Its header block documents the timing knobs.
 3. **Unresolved review threads.** The REST/`--json` view doesn't expose them, so use GraphQL, paginating while `hasNextPage` (pass the previous `endCursor` as `-f cursor=…`):
+
+   <!-- mod:skip id=threads -->
    ```bash
    repo_json=$(gh repo view --json owner,name)
    owner=$(jq -r '.owner.login // .owner.name' <<<"$repo_json"); repo=$(jq -r '.name' <<<"$repo_json")
@@ -28,11 +30,17 @@ If the branch is behind its base or conflicting (confirmed against the compare A
      | jq -r '.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved==false)
               | [.id,.path,(.line//""),(.isOutdated|tostring),(.comments.nodes[-1].author.login//""),(.comments.nodes[-1].body|gsub("\n";" ")|.[0:240])] | @tsv'
    ```
+   <!-- /mod:skip -->
+
 4. **Fix what's real.** Bot summaries are useful but not authoritative: verify each finding (and each failing check) against the code at the current head, since a thread may be outdated or already addressed. Commit focused fixes, run the repo's gates, push, and go back to 1 on the new head.
 5. **Resolve a thread only after verifying its fix landed.** Where a generated artifact ships, check that source and artifact agree first:
+
+   <!-- mod:skip id=resolve -->
    ```bash
    gh api graphql -f query='mutation($threadId:ID!){resolveReviewThread(input:{threadId:$threadId}){thread{id,isResolved}}}' -f threadId=<thread-id>
    ```
+   <!-- /mod:skip -->
+
 6. **Merge-ready** when all four hold: checks passing or intentionally skipped, review decision acceptable, no actionable comments, no unresolved threads. Do one fresh sweep of status, threads, comments, and local `git status` first, then report the evidence: head SHA, check names and results, unresolved thread count, gates run, and any dirty files left untouched. Merge only when the user asked for it; otherwise merge-ready is the verdict and the watch continues until the PR is merged, closed, or needs the user.
 
 **Known-red checks.** Before flagging a failing check, look in memory and project notes for checks documented as non-actionable (e.g. hft-market-server's Security Audit). State once that it's a known red and move on; it stays out of every later cycle's diagnosis.

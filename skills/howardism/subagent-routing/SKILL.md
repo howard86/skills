@@ -10,6 +10,7 @@ reference; read only the harness branch that applies, then the common contract.
 For an explicitly authorized Agent Bridge route, also read
 [the bridge reference](references/agent-bridge.md).
 
+<!-- mod:skip id=harness -->
 ## Identify the running harness
 
 Use the current session's explicit runtime identity and live tool descriptions.
@@ -30,6 +31,7 @@ inspect runtime metadata/help without starting another session; ask for the
 harness only if that leaves the route unresolved. If native delegation is absent,
 report that limitation and do useful root work within the requested scope. An
 explicit subagent requirement remains incomplete until a supported worker runs.
+<!-- /mod:skip -->
 
 ## Choose the execution path
 
