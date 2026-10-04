@@ -14,7 +14,7 @@
 // disables it. Logging is fail-open: a locked or unwritable database never fails the call.
 //
 // CLI: `bun jev.ts models` lists the aliases the account can send;
-//      `bun jev.ts ask < request.json` posts a raw {state, questions[, model]} body and prints the answers;
+//      `bun jev.ts ask < request.json` posts a raw {state, questions[, model, retries, caller, meta]} body and prints the answers;
 //      `bun jev.ts usage [days]` summarises the usage log per caller (default 30 days).
 
 import { $ } from "bun";
@@ -264,8 +264,15 @@ if (import.meta.main) {
     if (cmd === "models") {
       for (const m of await models()) console.log(`${m.name}\t${m.release_date}\t${m.description}`);
     } else if (cmd === "ask") {
-      const req = JSON.parse(await Bun.stdin.text()) as { state: Text; questions: Record<string, Question>; model?: string };
-      const r = await ask(req.state, req.questions, { model: req.model });
+      const req = JSON.parse(await Bun.stdin.text()) as {
+        state: Text;
+        questions: Record<string, Question>;
+        model?: string;
+        retries?: number;
+        caller?: string;
+        meta?: unknown;
+      };
+      const r = await ask(req.state, req.questions, { model: req.model, retries: req.retries, caller: req.caller, meta: req.meta });
       console.log(JSON.stringify(r, null, 2));
     } else if (cmd === "usage") {
       const days = Number(process.argv[3] ?? 30);
