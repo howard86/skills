@@ -49,6 +49,8 @@ stated once, in the global `CLAUDE.md` `## Agent` bullet and in the rules-engine
 single statement stays the source of truth. Edit those three skills together: the two workflow skills
 open by loading the router, and the router's description names them.
 
+The `skill-lean` Claude Code mod (`~/claude/agent-plugins/mods/skill-lean`) rewrites six skills at load, in Claude Code only: `subagent-routing`, `implement-with-subagent`, `commit-with-subagent`, `agent-status`, `chat-history`, and `babysit-pr` (its `register.ts` lists them). A `<!-- mod:skip -->` region is removed; a `<!-- mod:skip id=X -->` region is replaced by the mod's insert for `X` (the original text stays when none exists). Ids in use: `harness` and `refs` in `subagent-routing`; `threads` and `resolve` in `babysit-pr`. The mod also matches the exact opener "Call the Skill tool with `subagent-routing` first." in `implement-with-subagent` and `commit-with-subagent`, and duplicates `babysit-pr`'s GraphQL strings verbatim in its `lib.ts`. Every mismatch fails open (the mod silently does nothing), so renaming any of these needs the same change in the mod. A skip region must never hold a definition used outside it.
+
 ## Agent skills
 
 ### Triage labels
