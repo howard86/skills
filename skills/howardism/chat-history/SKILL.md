@@ -15,10 +15,12 @@ bun ${CLAUDE_SKILL_DIR}/scripts/chatlog.ts search "eval isolation"   # both corp
 bun ${CLAUDE_SKILL_DIR}/scripts/chatlog.ts show <session-id>         # replay one session
 ```
 
+Below, `$S` stands for `${CLAUDE_SKILL_DIR}`, this skill's directory.
+
 <!-- mod:skip -->
 Harnesses that don't set `CLAUDE_SKILL_DIR` (Codex): substitute
 `~/.agents/skills/chat-history` (Claude Code's own fallback is
-`~/.claude/skills/chat-history`). Below, `$S` stands for that path.
+`~/.claude/skills/chat-history`).
 <!-- /mod:skip -->
 
 ## Typical loop
