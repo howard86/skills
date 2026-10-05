@@ -90,5 +90,6 @@ Completion requires the requested behavior, appropriate observed checks, final
 diff inspection, and preservation of unrelated work. A started command is not a
 passing check. A durable partial patch is not a completed implementation. When
 blocked, return the exact error, attempts, recoverable artifacts, and what would
-unblock the task. On pause/stop, safely stop owned workers, retain a compact
-checkpoint, and launch no replacement round until resumed.
+unblock the task. On completion, stop every owned worker the runtime keeps
+resident after its result. On pause/stop, safely stop owned workers, retain a
+compact checkpoint, and launch no replacement round until resumed.

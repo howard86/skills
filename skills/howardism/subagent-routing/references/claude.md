@@ -70,7 +70,10 @@ and prompt cache, and ignores `model`, so it runs on the session model. Fork whe
 the assignment already lives in this conversation and re-briefing would cost more
 than the inherited context; every other worker starts fresh and needs the full
 brief. `name` makes a worker addressable through `SendMessage` and resumable
-after it finishes.
+after it finishes. The cost: a named worker stays resident once done, its report
+goes only to its own transcript, and its completion arrives as an idle notice.
+Read its last message, then `TaskStop` it by name; left idle, it can claim new
+unclaimed tasks. Spawn nameless when resumability is not needed.
 
 The session model shapes delegation appetite. Opus 5 and 5.5 reach for workers
 readily: match spawns to packages (one worker each, no extra scouts or duplicate
