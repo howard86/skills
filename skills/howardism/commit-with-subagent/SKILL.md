@@ -44,6 +44,11 @@ Preserve unrelated staged entries: a plain commit of the entire existing index i
 not scope-safe. If selective staging cannot preserve them reliably, report the
 blocker before changing the index.
 
+A Claude Code worker gets its own attribution reminder naming its own session,
+and it follows that over a trailer the brief spells out. Check each commit's
+trailer against the root's attribution when reviewing it, and rewrite unpushed
+commits that carry the worker's.
+
 Run hooks normally. Inspect HEAD/status after a hook failure instead of assuming
 whether a commit happened. Restage only in-scope hook changes and rerun affected
 checks. An out-of-scope hook rewrite is a blocker, not permission to absorb it or
