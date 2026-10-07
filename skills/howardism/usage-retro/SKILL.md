@@ -1,23 +1,23 @@
 ---
-name: retro
+name: usage-retro
 description: Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
 disable-model-invocation: true
 ---
 
-# Retro
+# Usage Retro
 
 Mine past session transcripts (global paths) for recurring prompts and friction, then propose concrete improvements: new skills, rules, memories.
 
 ## Scope
 
-Default: last 30 days, all projects. Args override: `/retro 7d` → `--days 7`, `/retro all` → a `--days` window covering the whole corpus (cost scales with the window), `/retro <project-substring>` → `--project sub`.
+Default: last 30 days, all projects. Args override: `/usage-retro 7d` → `--days 7`, `/usage-retro all` → a `--days` window covering the whole corpus (cost scales with the window), `/usage-retro <project-substring>` → `--project sub`.
 
 ## 1. Scan
 
 One command produces every evidence table and the worker briefs for step 2; read its output instead of writing ad-hoc parsers:
 
 ```bash
-S=~/.claude/skills/retro/scripts/retro-scan.ts   # Codex: ~/.agents/skills/retro/scripts/retro-scan.ts
+S=~/.claude/skills/usage-retro/scripts/retro-scan.ts   # Codex: ~/.agents/skills/usage-retro/scripts/retro-scan.ts
 R=<scratchpad>/retro && mkdir -p $R               # the session scratchpad; a redirect into a missing dir fails before the script runs
 SID=<this session's id>                           # the directory above `scratchpad` in that path
 bun $S --days 30 --exclude $SID [--project sub] [--cap 12] --briefs $R > $R/scan.md
@@ -45,7 +45,7 @@ Call the Skill tool with `subagent-routing`, then spawn one general-purpose work
 
 While the workers run, do the root work that needs no verdicts: read the previous `retro-notes.md` in the cwd (proposals never applied are reported again as repeats), and read `scan.md`'s skill table and long-prompt list. When every worker has reported, `cat $R/verdicts-*.md`; a worker's line is evidence to carry forward with its sid, and a transcript is opened at root only to settle a verdict that contradicts the scan.
 
-Before writing findings, run `bun ~/.claude/skills/retro/scripts/retro-calibrate.ts $R` (Codex: `~/.agents/skills/...`). It joins `items.jsonl` with the verdict files (a count mismatch per file fails loudly), appends the labelled rows to `${XDG_STATE_HOME:-~/.local/state}/retro/labels.jsonl` (deduplicated by bucket, sid, ts, skill; `--store <path>` overrides), and prints Jev's precision per bucket and model in the bands `>= 0.8`, `0.5 to 0.8`, and below 0.5 or 0, plus the lowest threshold whose precision reaches `--target` (default 0.85) over at least `--min-n` items (default 10), or `not enough labels`. Only the gaps bucket is scored (`applies*` is yes; `incidental`, `marginal`, `not-a-gap` are no); other buckets are stored with their raw label and counted. When the printed threshold differs from 0.8, pass it as `--jev-act` next time. The store holds prompt text: it stays out of every repo.
+Before writing findings, run `bun ~/.claude/skills/usage-retro/scripts/retro-calibrate.ts $R` (Codex: `~/.agents/skills/...`). It joins `items.jsonl` with the verdict files (a count mismatch per file fails loudly), appends the labelled rows to `${XDG_STATE_HOME:-~/.local/state}/retro/labels.jsonl` (deduplicated by bucket, sid, ts, skill; `--store <path>` overrides), and prints Jev's precision per bucket and model in the bands `>= 0.8`, `0.5 to 0.8`, and below 0.5 or 0, plus the lowest threshold whose precision reaches `--target` (default 0.85) over at least `--min-n` items (default 10), or `not enough labels`. Only the gaps bucket is scored (`applies*` is yes; `incidental`, `marginal`, `not-a-gap` are no); other buckets are stored with their raw label and counted. When the printed threshold differs from 0.8, pass it as `--jev-act` next time. The store holds prompt text: it stays out of every repo.
 
 ## 3. Analyze
 

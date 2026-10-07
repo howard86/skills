@@ -36,7 +36,7 @@ Pass `state` as a JSON object with named fields (`brief`, `issue`, `excerpt`), n
 
 `scripts/jev.ts` exports `ask(state, questions, {model?, retries?, caller?, meta?})` (retries 429 and 5xx, honours retry-after, returns typed answers plus `latency_ms`), `models()`, `band()`, and `apiKey()`.
 
-Consumers today: the `jev-lens` Claude Code mod (through the `ask` CLI), subagent-routing `scripts/route.ts` (model tier from a brief), retro `scripts/retro-scan.ts` (correction, nudge, wanted-skill labels), triage `scripts/triage-classify.ts` (category, state, spec completeness, out-of-scope match), afk-issue-loop `scripts/prescreen.ts` (migration, unmerged dependency, spec completeness).
+Consumers today: the `jev-lens` Claude Code mod (through the `ask` CLI), subagent-routing `scripts/route.ts` (model tier from a brief), usage-retro `scripts/retro-scan.ts` (correction, nudge, wanted-skill labels), triage `scripts/triage-classify.ts` (category, state, spec completeness, out-of-scope match), afk-issue-loop `scripts/prescreen.ts` (migration, unmerged dependency, spec completeness).
 
 A consumer resolves the helper by sibling path first, then the installed locations, and loads it dynamically:
 

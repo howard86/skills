@@ -25,10 +25,10 @@ DESTS=("$HOME/.claude/skills" "$HOME/.agents/skills" "$HOME/.gemini/config/skill
 # LOCAL DEVIATION from upstream: `in-progress/` is skipped too. Upstream links
 # it so the feedback loop runs locally, but every one of its skills is
 # `disable-model-invocation: true` and none has been invoked once in the whole
-# transcript corpus, so the loop was never running. It also collides:
-# `in-progress/retro` and `howardism/retro` are different skills sharing a
-# name, and which one lands in the flat destination directory is decided by
-# `find` ordering alone. Skipping the bucket settles that.
+# transcript corpus, so the loop was never running. It also collided:
+# `in-progress/retro` shared its name with this repo's own retro (since
+# renamed `howardism/usage-retro`), and which one landed in the flat
+# destination directory was decided by `find` ordering alone.
 names=()
 srcs=()
 while IFS= read -r -d '' skill_md; do

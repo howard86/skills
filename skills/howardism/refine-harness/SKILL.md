@@ -23,7 +23,7 @@ Three measurements back every decision, cheapest first:
 - **Ablation** — for a contested CLAUDE.md line, headless A/B runs with the line present and
   absent, scored by a probe's deterministic check.
 
-Sibling skills own the other directions: `/retro` mines prompts for config that is *missing*;
+Sibling skills own the other directions: `/usage-retro` mines prompts for config that is *missing*;
 `/refine-skill <name>` fixes *one skill's body*. Findings of those shapes are handed off.
 
 Arguments: surface names limit the scan (default: all seven); `--days N` sets the evidence

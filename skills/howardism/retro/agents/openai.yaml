@@ -1,6 +1,0 @@
-interface:
-  display_name: "Retro"
-  short_description: "Mine session history for recurring prompts and friction"
-  default_prompt: "Use $retro to mine recent session history for repeated prompts and friction, then propose skills, rules, and memories."
-policy:
-  allow_implicit_invocation: false

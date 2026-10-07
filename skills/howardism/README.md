@@ -13,7 +13,7 @@ Reachable only by typing the name.
 - **[perf-review](./perf-review/SKILL.md)** — Fan out the perf-* angle skills as parallel subagents over a target and merge their findings into ranked, measurable improvement suggestions.
 - **[codex-fewer-permission-prompts](./codex-fewer-permission-prompts/SKILL.md)** — Mine recent Codex transcripts for repeated read-only approvals and add narrow prefix rules for them.
 - **[jev-decisions](./jev-decisions/SKILL.md)**: Reference for cheap, calibrated decisions over text with TypeSafe Jev (choice, score, yes/no with confidence), the shared helper other skills' scripts import, its local SQLite usage log, and where the API key lives.
-- **[retro](./retro/SKILL.md)**: Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
+- **[usage-retro](./usage-retro/SKILL.md)**: Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
 
 ## Model-invoked
 

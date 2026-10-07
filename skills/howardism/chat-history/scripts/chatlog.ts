@@ -336,7 +336,7 @@ async function searchTranscripts(query: string, dir: string, re: RegExp): Promis
   return out.join("\n");
 }
 
-// --- prompts dump (bulk, no query: feeds the retro skill) -----------------
+// --- prompts dump (bulk, no query: feeds the usage-retro skill) -----------------
 // Reads user turns straight from the Claude transcripts, mtime-pruned by --days.
 type PromptRow = { ts: string; project: string; sid: string; text: string; agent?: boolean; prev?: string };
 export const PREV_MAX_WORDS = 5;
