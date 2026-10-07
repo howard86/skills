@@ -53,6 +53,8 @@
     "./skills/howardism/chat-history",
     "./skills/howardism/rebase-pr",
     "./skills/howardism/babysit-pr",
+    "./skills/howardism/agent-status",
+    "./skills/howardism/disk-cleanup",
     "./skills/howardism/retro",
     "./skills/howardism/perf-review",
     "./skills/howardism/perf-measurement",
