@@ -266,6 +266,7 @@ Skills I wrote myself, with no counterpart in the upstream fork.
 - **[commit-with-subagent](./skills/howardism/commit-with-subagent/SKILL.md)**: Delegate scoped atomic commits; verify before any requested push or draft PR.
 - **[subagent-routing](./skills/howardism/subagent-routing/SKILL.md)**: Resolve native delegation or an authorized Agent Bridge route, with supported models and clear ownership.
 - **[rebase-pr](./skills/howardism/rebase-pr/SKILL.md)**: Rebase a stale PR onto its remote base, resolve conflicts, verify, and force-push under an explicit lease.
+- **[resolving-merge-conflicts](./skills/howardism/resolving-merge-conflicts/SKILL.md)**: Work through an in-progress git merge or rebase conflict hunk by hunk, resolving by intent traced to each side's primary source, then run the project's checks.
 - **[babysit-pr](./skills/howardism/babysit-pr/SKILL.md)**: Watch a PR's CI, review threads, and mergeability through to merge-ready, merged, or closed.
 - **[agent-status](./skills/howardism/agent-status/SKILL.md)**: Audit every unit of running work a session owns (subagents, background tasks, agent-bridge sessions, remote runs) and give each a live/quiet/stale verdict with the action taken.
 - **[disk-cleanup](./skills/howardism/disk-cleanup/SKILL.md)**: Reclaim disk on the Mac by running the housekeeping scripts in the order that works, with the guards they lack (/private/tmp vault copies, detached worktrees, the `out` kind footgun, df as the only measure).

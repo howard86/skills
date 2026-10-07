@@ -52,6 +52,7 @@
     "./skills/howardism/blindspot",
     "./skills/howardism/chat-history",
     "./skills/howardism/rebase-pr",
+    "./skills/howardism/resolving-merge-conflicts",
     "./skills/howardism/babysit-pr",
     "./skills/howardism/agent-status",
     "./skills/howardism/disk-cleanup",
