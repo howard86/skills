@@ -66,6 +66,7 @@
     "./skills/howardism/perf-io",
     "./skills/howardism/perf-concurrency",
     "./skills/howardism/perf-render",
+    "./skills/howardism/perf-e2e",
     "./skills/productivity/grill-me",
     "./skills/productivity/grilling",
     "./skills/productivity/handoff",
