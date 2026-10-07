@@ -10,7 +10,7 @@ Reachable only by typing the name.
 - **[refine-harness](./refine-harness/SKILL.md)** — Prune, relocate, and sharpen the always-on harness config (global CLAUDE.md, rules-engine rules, hooks, auto-memory, skill listing, permissions, mirrors) against Anthropic's guidance and the last 30 days of evidence.
 - **[refresh-harness-references](./refresh-harness-references/SKILL.md)**: Re-verify a multi-harness reference set against installed CLIs and vendor docs, then cut the claims the environment already answers.
 - **[blindspot](./blindspot/SKILL.md)** — Diagnosis-only pass over a stated goal that surfaces the unknown unknowns, ranked by leverage, plus sharper follow-up prompts. Never edits.
-- **[perf-review](./perf-review/SKILL.md)** — Fan out the perf-* angle skills as parallel subagents over a target and merge their findings into ranked, measurable improvement suggestions.
+- **[perf-review](./perf-review/SKILL.md)**: Fan out the perf-* angle skills as parallel subagents over a target, merge their findings into ranked, measurable hypotheses, and ship them as one benchmark-gated PR when asked.
 - **[codex-fewer-permission-prompts](./codex-fewer-permission-prompts/SKILL.md)** — Mine recent Codex transcripts for repeated read-only approvals and add narrow prefix rules for them.
 - **[jev-decisions](./jev-decisions/SKILL.md)**: Reference for cheap, calibrated decisions over text with TypeSafe Jev (choice, score, yes/no with confidence), the shared helper other skills' scripts import, its local SQLite usage log, and where the API key lives.
 - **[usage-retro](./usage-retro/SKILL.md)**: Mine past session transcripts for recurring prompts and friction, then propose skills, rules, and memories that would remove them.
