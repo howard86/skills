@@ -37,3 +37,6 @@ Model- or user-reachable (rich trigger phrasing so the model can reach for them)
 - **[perf-memory](./perf-memory/SKILL.md)** — Cut allocation and memory-representation costs: pre-sizing, copy avoidance, object reuse, compact layouts, indices over pointers.
 - **[perf-api](./perf-api/SKILL.md)** — Performance-aware interface shape: bulk operations, view parameters, thread-compatible defaults, hoisted per-call setup.
 - **[perf-overhead](./perf-overhead/SKILL.md)** — Strip incidental hot-path overhead: logging, stats collection, and indirection the optimizer can't see through.
+- **[perf-io](./perf-io/SKILL.md)**: Cut data-path costs across database, network, and serialization boundaries: query shape and indexes, payload size, round-trip batching, parse avoidance, cache keys and invalidation, reconnect and polling cadence.
+- **[perf-concurrency](./perf-concurrency/SKILL.md)**: Cut synchronization and scheduling costs: lock amortization, short critical sections, no I/O under a mutex, sharding, false sharing, async runtime overhead, work deferred off the critical path.
+- **[perf-render](./perf-render/SKILL.md)**: Cut UI render-path costs: unnecessary re-renders and rebuilds, work inside render or build, expensive paint effects, unstable memo and query keys, unbatched updates.

@@ -1,0 +1,3 @@
+interface:
+  display_name: "Perf Render"
+  short_description: "Cut UI re-render and paint costs"
