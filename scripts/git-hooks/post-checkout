@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Installed by scripts/install-git-hooks.sh. $3 is 1 for a branch checkout,
+# 0 for a file checkout, which changes no skill layout worth relinking.
+[ "${3:-0}" = 1 ] || exit 0
+s="$(git rev-parse --show-toplevel)/scripts/sync-skill-links.sh"
+[ -x "$s" ] || exit 0  # a branch that predates the script
+exec "$s"

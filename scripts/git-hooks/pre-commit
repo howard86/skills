@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Installed by scripts/install-git-hooks.sh. Checks the bucket contract only
+# when the commit touches what it covers; bypass a one-off with --no-verify.
+git diff --cached --name-only | grep -qE '^(skills/|README\.md$|\.claude-plugin/)' || exit 0
+s="$(git rev-parse --show-toplevel)/scripts/check-skills.sh"
+[ -x "$s" ] || exit 0  # a branch that predates the script
+exec "$s"

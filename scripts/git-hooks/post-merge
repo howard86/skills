@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Installed by scripts/install-git-hooks.sh.
+s="$(git rev-parse --show-toplevel)/scripts/sync-skill-links.sh"
+[ -x "$s" ] || exit 0  # a branch that predates the script
+exec "$s"
