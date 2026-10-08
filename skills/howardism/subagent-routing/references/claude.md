@@ -1,7 +1,7 @@
 # Claude Code subagent reference
 
 Regenerate these facts with `claude --version`, the `/model` picker, and the live
-`Agent` tool schema in this session. Last checked against Claude Code 2.1.280.
+`Agent` tool schema in this session. Last checked against Claude Code 2.1.293.
 This branch applies only when Claude Code is the running harness; a Grok or Cursor
 session importing Claude instructions must use its own branch instead.
 
@@ -9,12 +9,14 @@ session importing Claude instructions must use its own branch instead.
 
 | Role | Starting choice | Escalation |
 | --- | --- | --- |
-| Pure tallies, fetches, narrow extraction | `haiku`; inherited effort | `sonnet` |
+| Pure tallies, fetches, narrow extraction; built-in `Explore` and `Plan` (read-only searches) | `haiku`; inherited effort | `sonnet` (a "very thorough" multi-location sweep), never `opus` |
 | Scoped implementation, tests, ordinary commit grouping | `sonnet`; `medium` where an agent definition sets effort | `opus` when the package leaves a design decision open or a `sonnet` attempt failed on substance |
 | Difficult design, diagnosis, high-risk review (not the implementation of a settled package, whatever its risk) | `opus` | `fable` only if explicitly selected/authorized and available |
 
 The router's `scripts/route.ts` picks the starting choice from the brief; this
 table remains the escalation guide and the fallback when the script is unavailable.
+Leaving `model` off an `Explore` call gives it the session model capped at Opus, so
+pass `model` explicitly (with `--agent-type Explore`, `route.ts` recommends the cheap tier).
 
 `opus` resolves to Opus 5.5 from v2.1.280, the account default on every plan
 except Foundry. Its default effort is `medium`, one level below every other
@@ -35,12 +37,17 @@ fallback.
 An alias resolves to a different version per provider, which is why the workflow
 skills carry aliases rather than dated full IDs:
 
-| Provider | Opus | Sonnet |
-| --- | --- | --- |
-| Anthropic API | 5.5 | 5 |
-| Claude Platform on AWS | 5.5 | 4.6 |
-| Amazon Bedrock, Google Cloud Agent Platform | 5.5 | 4.5 |
-| Microsoft Foundry | 4.6 | 4.5 |
+| Provider | Opus | Sonnet | Haiku |
+| --- | --- | --- | --- |
+| Anthropic API | 5.5 | 5.5 | 5.5 |
+| Claude Platform on AWS | 5.5 | 4.6 | unverified |
+| Amazon Bedrock, Google Cloud Agent Platform | 5.5 | 4.5 | unverified |
+| Microsoft Foundry | 4.6 | 4.5 | unverified |
+
+An alias moves to a new version on a CLI upgrade, not on a model release date:
+`sonnet` moved to 5.5 at v2.1.284 and `haiku` at v2.1.293 (it stayed on Haiku 4.5
+until then), so a worker's tier label does not tell you its version. Confirm the
+version that ran from the worker transcript (`bun <chat-history>/scripts/chatlog.ts models`).
 
 The effective model is a runtime observation, never the requested alias: safety
 classifiers can move a Fable or Opus 5.5 worker to Opus 5 or Opus 4.8 mid-task

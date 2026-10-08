@@ -1,8 +1,11 @@
 #!/usr/bin/env bun
 // Recommend a starting model tier for a worker brief using TypeSafe's Jev classifier.
 //
-//   bun route.ts --brief-file brief.txt [--harness claude|codex|antigravity|cursor|grok] [--json]
+//   bun route.ts --brief-file brief.txt [--harness claude|codex|antigravity|cursor|grok] [--agent-type <type>] [--json]
 //   bun route.ts < brief.txt
+//
+// --agent-type explore|plan (case-insensitive) marks a read-only built-in spawn: the tier is capped at
+// standard (cheap unless difficulty is demanding) and risk bumps do not apply. Other types change nothing.
 //
 // One Jev request asks role, difficulty, risk, and brief completeness; the mapping to a tier
 // below is plain code. Exit 3 with `jev unavailable: <reason>` on stderr when the helper or the
@@ -83,7 +86,7 @@ function unavailable(reason: string): never {
 }
 
 function usage(msg: string): never {
-  console.error(`route: ${msg}\nusage: bun route.ts [--brief-file <path>] [--harness ${HARNESSES.join("|")}] [--json] (brief on stdin otherwise)`);
+  console.error(`route: ${msg}\nusage: bun route.ts [--brief-file <path>] [--harness ${HARNESSES.join("|")}] [--agent-type <type>] [--json] (brief on stdin otherwise)`);
   process.exit(2);
 }
 
@@ -91,6 +94,7 @@ function usage(msg: string): never {
 let briefFile: string | undefined;
 let harness: Harness = "claude";
 let asJson = false;
+let agentType: string | undefined;
 const argv = process.argv.slice(2);
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -99,7 +103,8 @@ for (let i = 0; i < argv.length; i++) {
     const h = argv[++i];
     if (!HARNESSES.includes(h as Harness)) usage(`unknown harness ${JSON.stringify(h)}`);
     harness = h as Harness;
-  } else if (a === "--json") asJson = true;
+  } else if (a === "--agent-type") agentType = (argv[++i] ?? usage("--agent-type needs a type")).toLowerCase();
+  else if (a === "--json") asJson = true;
   else usage(`unknown argument ${JSON.stringify(a)}`);
 }
 
@@ -148,18 +153,23 @@ const diffLevel = DIFFICULTY[level(difficulty.score, DIFFICULTY.length)];
 const riskLevel = RISK[level(risk.score, RISK.length)];
 const bump: Record<Tier, Tier> = { cheap: "standard", standard: "strong", strong: "strong" };
 
+const readOnly = agentType === "explore" || agentType === "plan";
 const notes: string[] = [];
 let tier: Tier | "unsure";
 if (role.confidence < 0.5) {
   tier = "unsure";
   notes.push("use the harness default and say so");
 } else {
-  if (role.choice === "reviewer" || diffLevel === "demanding") tier = "strong";
-  else if (role.choice === "scout") tier = "cheap";
-  else tier = "standard";
-  if (riskLevel === "irreversible") tier = bump[tier];
+  if (readOnly) tier = diffLevel === "demanding" ? "standard" : "cheap";
+  else {
+    if (role.choice === "reviewer" || diffLevel === "demanding") tier = "strong";
+    else if (role.choice === "scout") tier = "cheap";
+    else tier = "standard";
+    if (riskLevel === "irreversible") tier = bump[tier];
+  }
 }
-if (riskLevel === "irreversible") notes.push("needs an independent reviewer");
+if (readOnly) notes.push("read-only agent type: pass model explicitly; omitted, Explore inherits the session model capped at Opus");
+if (riskLevel === "irreversible" && !readOnly) notes.push("needs an independent reviewer");
 if (brief_complete.noul < 0.5) notes.push("improve the brief before raising effort");
 if (tier !== "unsure" && jev.band(difficulty.confidence) === "fallback")
   notes.push("difficulty read is low-confidence; check the tier against the reference table");
@@ -176,6 +186,7 @@ const out = {
   tier,
   model,
   harness,
+  agent_type: agentType ?? null,
   notes,
   answers: {
     role: { choice: role.choice, probabilities: role.probabilities, confidence: role.confidence, band: jev.band(role.confidence) },

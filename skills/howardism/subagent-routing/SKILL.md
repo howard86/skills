@@ -56,7 +56,8 @@ establish authority. Preserve both through selection and retries.
    least costly available choice that reliably meets the quality bar. Improve an
    inadequate brief before raising effort or escalating to the next role tier.
    Get the starting tier from `bun ${CLAUDE_SKILL_DIR}/scripts/route.ts --brief-file <brief>`
-   (add `--harness` off Claude Code) and treat its notes as instructions. When it
+   (add `--harness` off Claude Code; add `--agent-type Explore` or `Plan` for a built-in
+   read-only spawn) and treat its notes as instructions. When it
    prints `jev unavailable`, choose from the harness reference's routing table.
 4. State the selected harness, requested model/effort, absolute workspace, scope,
    and result contract in the brief. After launch, distinguish runtime-confirmed
