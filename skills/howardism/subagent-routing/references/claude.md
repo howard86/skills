@@ -10,7 +10,8 @@ session importing Claude instructions must use its own branch instead.
 | Role | Starting choice | Escalation |
 | --- | --- | --- |
 | Pure tallies, fetches, narrow extraction; built-in `Explore` and `Plan` (read-only searches) | `haiku`; inherited effort | `sonnet` (a "very thorough" multi-location sweep), never `opus` |
-| Scoped implementation, tests, ordinary commit grouping | `sonnet`; `medium` where an agent definition sets effort | `opus` when the package leaves a design decision open or a `sonnet` attempt failed on substance |
+| Settled commits: the brief fixes groups, order, paths, and message text; amend of an unpushed HEAD the brief names | `haiku`; inherited effort, not `low` | `sonnet` when a hook fails, the tree differs from the brief, or a decision is left open |
+| Scoped implementation, tests, commit grouping or messages the worker must decide | `sonnet`; `medium` where an agent definition sets effort | `opus` when the package leaves a design decision open or a `sonnet` attempt failed on substance |
 | Difficult design, diagnosis, high-risk review (not the implementation of a settled package, whatever its risk) | `opus` | `fable` only if explicitly selected/authorized and available |
 
 The router's `scripts/route.ts` picks the starting choice from the brief; this
@@ -18,12 +19,31 @@ table remains the escalation guide and the fallback when the script is unavailab
 Leaving `model` off an `Explore` call gives it the session model capped at Opus, so
 pass `model` explicitly (with `--agent-type Explore`, `route.ts` recommends the cheap tier).
 
-`opus` resolves to Opus 5.5 from v2.1.280, the account default on every plan
-except Foundry. Its default effort is `medium`, one level below every other
-model's `high`, and its per-token price sits below Opus 5. The narrower price gap
-leaves settled implementation on `sonnet`, one worker per package, so a
-multi-package plan runs in parallel rather than serially inside one `opus` worker.
-Judge cost per completed task, and improve the brief before raising effort or tier.
+Anthropic API figures for the three aliases (all have a 1M context window, 128K max
+output, June 2026 cutoff, adaptive thinking, and `low` to `max` effort):
+
+| | `haiku` (Haiku 5.5) | `sonnet` (Sonnet 5.5) | `opus` (Opus 5.5) |
+| --- | --- | --- | --- |
+| Alias since | v2.1.293 | v2.1.284 | v2.1.280 |
+| Input / output per MTok | $0.10 / $0.50; $0.50 / $2.50 on prompts over 100K | $2 / $10 | $4 / $20 |
+| Cache read per MTok | $0.01; $0.05 over 100K | $0.10 | $0.20 |
+| Default effort in Claude Code | `medium` | `medium` | `medium` |
+| Terminal-Bench 4.0 | 39.2% (max) | 70.6% (max) | 66.4% (xhigh) |
+| FrontierCode 1.1 Main | 46.4% (max) | 52.1% (xhigh) | 54.4% (max) |
+
+[Pricing](https://platform.claude.com/docs/en/about-claude/pricing),
+[Haiku 5.5 system card](https://www.anthropic.com/document/claude-haiku-5-5-system-card) section 8,
+[Opus 5.5](https://www.anthropic.com/claude-opus-5-5).
+
+`opus` is the account default on every plan except Foundry. Opus 5.5 costs twice
+Sonnet 5.5 and scores below it on Terminal-Bench, so settled implementation stays on
+`sonnet`, one worker per package, and a multi-package plan runs in parallel rather
+than serially inside one `opus` worker. Haiku 5.5 costs a twentieth of Sonnet 5.5
+but trails it by about 30 points on agentic coding: give it briefs that settle every
+decision (tallies, fetches, commits with fixed groups and messages), never
+code-writing packages, and verify what it reports done, since its system card rates
+it more prone to false completion claims than Sonnet or Opus. Judge cost per
+completed task, and improve the brief before raising effort or tier.
 
 Use provider-resolved aliases from the current model picker: `default`, `best`
 (Fable where available, otherwise Opus), `fable`, `sonnet`, `opus`, `haiku`,
@@ -40,9 +60,14 @@ skills carry aliases rather than dated full IDs:
 | Provider | Opus | Sonnet | Haiku |
 | --- | --- | --- | --- |
 | Anthropic API | 5.5 | 5.5 | 5.5 |
-| Claude Platform on AWS | 5.5 | 4.6 | unverified |
-| Amazon Bedrock, Google Cloud Agent Platform | 5.5 | 4.5 | unverified |
-| Microsoft Foundry | 4.6 | 4.5 | unverified |
+| Claude Platform on AWS | 5.5 | 4.6 | 4.5 |
+| Amazon Bedrock, Google Cloud Agent Platform | 5.5 | 4.5 | 4.5 |
+| Microsoft Foundry | 4.6 | 4.5 | 4.5 |
+
+Off the Anthropic API, `haiku` is still Haiku 4.5, which takes no effort parameter;
+pin `ANTHROPIC_DEFAULT_HAIKU_MODEL` to the provider's Haiku 5.5 ID
+([Models overview](https://platform.claude.com/docs/en/about-claude/models/overview))
+to get 5.5 there.
 
 An alias moves to a new version on a CLI upgrade, not on a model release date:
 `sonnet` moved to 5.5 at v2.1.284 and `haiku` at v2.1.293 (it stayed on Haiku 4.5

@@ -46,7 +46,10 @@ const QUESTIONS = {
     instructions: "Which worker role does `brief` describe?",
     criteria: {
       scout: "Tallies, fetches, greps, narrow extraction; read-only; the answer is a list or a number",
-      implementer: "Edits code or docs, writes tests, groups commits; produces a diff",
+      implementer: "Edits code or docs, writes tests, or decides commit groups or messages; produces a diff",
+      committer:
+        "Stages and commits changes whose groups, order, paths, and message text the brief already fixes, " +
+        "or amends an unpushed HEAD the brief names; makes no edits and no grouping decisions",
       reviewer: "Judges a design, diagnoses a bug, or reviews a change for risk; produces a verdict",
     },
   },
@@ -163,13 +166,15 @@ if (role.confidence < 0.5) {
   if (readOnly) tier = diffLevel === "demanding" ? "standard" : "cheap";
   else {
     if (role.choice === "reviewer" || diffLevel === "demanding") tier = "strong";
-    else if (role.choice === "scout") tier = "cheap";
+    else if (role.choice === "scout" || role.choice === "committer") tier = "cheap";
     else tier = "standard";
     if (riskLevel === "irreversible") tier = bump[tier];
   }
 }
 if (readOnly) notes.push("read-only agent type: pass model explicitly; omitted, Explore inherits the session model capped at Opus");
 if (riskLevel === "irreversible" && !readOnly) notes.push("needs an independent reviewer");
+if (tier !== "unsure" && role.choice === "committer")
+  notes.push("verify every commit the worker reports; escalate to the implementer tier when a hook fails or the tree differs from the brief");
 if (brief_complete.noul < 0.5) notes.push("improve the brief before raising effort");
 if (tier !== "unsure" && jev.band(difficulty.confidence) === "fallback")
   notes.push("difficulty read is low-confidence; check the tier against the reference table");
