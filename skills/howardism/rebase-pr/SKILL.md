@@ -43,6 +43,8 @@ Merge commits inside the PR branch are dropped by a plain rebase; the branch com
 
 ## 4. Verify before pushing
 
+Record `git rev-parse HEAD` as the **verified SHA** first; every check below vouches for that commit, and step 5 pushes it.
+
 1. **Patches survived.** Compare the old commits with the rebased ones:
    ```bash
    git range-diff "$(git merge-base <lease> <base-remote>/<base>)..<lease>" <base-remote>/<base>..HEAD
@@ -54,8 +56,10 @@ Merge commits inside the PR branch are dropped by a plain rebase; the branch com
 ## 5. Push under the lease
 
 ```bash
-git push --force-with-lease=<headRefName>:<lease> <head-remote> HEAD:<headRefName>
+git push --force-with-lease=<headRefName>:<lease> <head-remote> <verified-sha>:<headRefName>
 ```
+
+Push the verified SHA from step 4, never `HEAD`: a reused worktree can be rewritten by another session while the gates run (seen on #1458, where a concurrent rebase reset the branch to a different PR's commits mid-test). Check `git rev-parse HEAD` still equals it; a mismatch means stop, report, and leave that worktree alone.
 
 Pin the lease to the recorded SHA. A bare `--force-with-lease` compares against the remote-tracking ref, which any later fetch (yours or an editor's background fetch) silently advances, so it can overwrite a push you never saw. A rejected push means the remote moved: fetch, inspect the new commits, and restart from step 1.
 
