@@ -5,8 +5,9 @@
 //   bun chatlog.ts show <session-id|path> [--grep re] [--tools] [--width N] [--tail N] [--last]
 //   bun chatlog.ts prompts [--days N] [--project sub] [--grep re] [--width N] [--tail N] [--include-agents] [--prev]
 //   bun chatlog.ts sessions [--source claude|codex|all] [--days N] [--project sub] [--limit N] [--include-agents]
+//   bun chatlog.ts models [--days N] [--project sub]
 //   bun chatlog.ts selfcheck
-// search/prompts default --days 30, sessions defaults --days 7; --days 0 means unlimited.
+// search/prompts/models default --days 30, sessions defaults --days 7; --days 0 means unlimited.
 // --include-agents opts subagent transcripts (Claude <parent-uuid>/subagents/agent-*.jsonl, named
 // Claude workers whose records carry an agentName, Codex rollouts whose session_meta names a
 // parent_thread_id) back into prompts/sessions. In prompts, agent rows carry a fourth header
@@ -28,6 +29,7 @@ const CMD_FLAGS: Record<string, FlagSpec> = {
   show: { grep: "str", tools: "bool", width: "num", tail: "num", last: "bool" },
   prompts: { days: "num", project: "str", grep: "str", width: "num", tail: "num", "include-agents": "bool", prev: "bool" },
   sessions: { source: "str", days: "num", project: "str", limit: "num", "include-agents": "bool" },
+  models: { days: "num", project: "str" },
   selfcheck: {},
 };
 
@@ -488,6 +490,97 @@ async function show(idOrPath: string) {
   }
 }
 
+// --- models ----------------------------------------------------------------
+// Per subagent: the model the parent requested (<name>.meta.json `model`, absent when unpinned)
+// against the models that ran (assistant `message.model` in the sibling <name>.jsonl).
+export type ModelScan = { models: string[]; versions: string[]; first: string; last: string };
+export function scanModels(text: string): ModelScan {
+  const out: ModelScan = { models: [], versions: [], first: "", last: "" };
+  for (const line of text.split("\n")) {
+    if (!line.includes('"type":"assistant"')) continue;
+    let obj: any;
+    try { obj = JSON.parse(line); } catch { continue; }
+    if (obj?.type !== "assistant") continue;
+    const m = obj.message?.model;
+    if (typeof m === "string" && m && m !== "<synthetic>" && !out.models.includes(m)) out.models.push(m);
+    if (typeof obj.version === "string" && !out.versions.includes(obj.version)) out.versions.push(obj.version);
+    if (typeof obj.timestamp === "string") { out.first ||= obj.timestamp; out.last = obj.timestamp; }
+  }
+  return out;
+}
+const verCmp = (a: string, b: string) => {
+  const x = a.split(".").map(Number), y = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) - (y[i] ?? 0);
+  return 0;
+};
+const verRange = (vs: string[]) => {
+  const s = [...vs].sort(verCmp);
+  return !s.length ? "?" : s[0] === s.at(-1) ? s[0]! : `${s[0]}..${s.at(-1)}`;
+};
+
+async function models() {
+  const days = Number(flag("days", "30"));
+  const project = flag("project", "").toLowerCase();
+  const cutoff = days ? Date.now() - days * 86_400_000 : 0;
+  type Row = { sid: string; name: string; type: string; req: string; scan: ModelScan };
+  const rows: Row[] = [];
+  for await (const meta of new Bun.Glob("*/*/subagents/*.meta.json").scan({ cwd: CLAUDE_DIR, absolute: true })) {
+    const parts = meta.split("/");
+    const name = parts.pop()!.replace(/\.meta\.json$/, "");
+    parts.pop();
+    const sid = parts.pop()!;
+    if (project && !parts.pop()!.toLowerCase().includes(project)) continue;
+    const jsonl = meta.replace(/\.meta\.json$/, ".jsonl");
+    if (days && Math.max(Bun.file(meta).lastModified, Bun.file(jsonl).lastModified) < cutoff) continue;
+    let m: any = {};
+    try { m = JSON.parse(await Bun.file(meta).text()); } catch { continue; }
+    rows.push({ sid, name, type: String(m.agentType ?? "?"), req: typeof m.model === "string" && m.model ? m.model : "", scan: scanModels(await Bun.file(jsonl).text().catch(() => "")) });
+  }
+  if (!rows.length) { console.log(`No subagents in the last ${days || "all"} days.`); return; }
+
+  const tally = new Map<string, { n: number; vs: string[]; type: string; req: string; res: string }>();
+  const alias = new Map<string, Map<string, { vs: Set<string>; first: string; last: string }>>();
+  for (const r of rows) {
+    const res = r.scan.models[0] ?? "none";
+    const key = `${r.type}\t${r.req}\t${res}`;
+    const t = tally.get(key) ?? { n: 0, vs: [], type: r.type, req: r.req || "-", res };
+    t.n++;
+    t.vs.push(...r.scan.versions);
+    tally.set(key, t);
+    if (r.req && res !== "none") {
+      const ids = alias.get(r.req) ?? new Map();
+      const a = ids.get(res) ?? { vs: new Set<string>(), first: r.scan.first, last: r.scan.last };
+      r.scan.versions.forEach((v) => a.vs.add(v));
+      if (r.scan.first && r.scan.first < a.first) a.first = r.scan.first;
+      if (r.scan.last > a.last) a.last = r.scan.last;
+      ids.set(res, a);
+      alias.set(r.req, ids);
+    }
+  }
+  console.log(`${rows.length} subagents, last ${days || "all"} days`);
+  for (const t of [...tally.values()].sort((a, b) => b.n - a.n))
+    console.log(`${String(t.n).padStart(5)}  ${t.type}  ${t.req} -> ${t.res}  (CLI ${verRange(t.vs)})`);
+
+  const strong = new Set(["", "opus", "opus[1m]", "fable", "best"]);
+  const sections: [string, string[]][] = [
+    ["alias drift (requested alias resolved to more than one model id)",
+      [...alias].filter(([, ids]) => ids.size > 1).flatMap(([a, ids]) =>
+        [...ids].sort((x, y) => x[1].first.localeCompare(y[1].first)).map(([id, v]) =>
+          `${a} -> ${id}  CLI ${verRange([...v.vs])}  ${v.first.slice(0, 10)}..${v.last.slice(0, 10)}`))],
+    ["mid-task switch (more than one model id in one transcript)",
+      rows.filter((r) => r.scan.models.length > 1).map((r) => `${r.sid}  ${r.name}  ${r.scan.models.join(" > ")}`)],
+    ["never ran (no assistant model)",
+      rows.filter((r) => !r.scan.models.length).map((r) => `${r.sid}  ${r.name}  ${r.type}  requested ${r.req || "-"}`)],
+    ["unpinned (no requested model)",
+      rows.filter((r) => !r.req).map((r) => `${r.sid}  ${r.name}  ${r.type}`)],
+    ["read-only on strong tier (Explore/Plan with opus, opus[1m], fable, best, or unpinned)",
+      rows.filter((r) => (r.type === "Explore" || r.type === "Plan") && strong.has(r.req)).map((r) => `${r.sid}  ${r.name}  ${r.type}  requested ${r.req || "-"}  ran ${r.scan.models[0] ?? "none"}`)],
+  ];
+  const hit = sections.filter(([, l]) => l.length);
+  console.log(hit.length ? "\nflags" : "\nno flags");
+  for (const [h, l] of hit) console.log(`\n${h}: ${l.length}\n${l.map((x) => `  ${x}`).join("\n")}`);
+}
+
 // --- main ------------------------------------------------------------------
 const cmd = positional[0];
 if (cmd && CMD_FLAGS[cmd]) {
@@ -540,6 +633,14 @@ if (cmd === "selfcheck") {
   console.assert(fa === "[2026-09-01T00:08 p abcdef01 agent] hi" && fm === "[2026-09-01T00:08 p abcdef01] hi", "formatPromptRow", fa, fm);
   const fp = formatPromptRow({ ts: "2026-09-01T00:08:09", project: "p", sid: "abcdef0123", text: "verify states", prev: "Three\nagents running" }, 0);
   console.assert(fp === "[2026-09-01T00:08 p abcdef01] verify states\n  ^prev: Three agents running", "formatPromptRow prev", fp);
+  const ms = scanModels([
+    '{"type":"assistant","version":"2.1.292","timestamp":"2026-09-01T00:00:00Z","message":{"model":"<synthetic>"}}',
+    '{"type":"assistant","version":"2.1.293","timestamp":"2026-09-01T00:01:00Z","message":{"model":"claude-haiku-5-5","content":[{"type":"tool_use","input":{"model":"sonnet"}}]}}',
+    '{"type":"user","message":{"model":"x"}}',
+    '{"type":"assistant","version":"2.1.293","timestamp":"2026-09-01T00:02:00Z","message":{"model":"claude-sonnet-5-5"}}',
+  ].join("\n"));
+  console.assert(ms.models.join() === "claude-haiku-5-5,claude-sonnet-5-5" && ms.versions.join() === "2.1.292,2.1.293" && ms.first === "2026-09-01T00:00:00Z" && ms.last === "2026-09-01T00:02:00Z", "scanModels", ms);
+  console.assert(verRange(["2.1.293", "2.1.284", "2.1.9"]) === "2.1.9..2.1.293" && verRange([]) === "?", "verRange numeric order");
   console.log("selfcheck ok");
 } else if (cmd === "show") {
   if (positional.length > 2) { console.error(`show takes one session id/path, got extra: ${positional.slice(2).join(" ")}`); process.exit(1); }
@@ -570,12 +671,15 @@ if (cmd === "selfcheck") {
   console.log(text || `No matches for "${query}".`);
 } else if (cmd === "sessions") {
   await sessions();
+} else if (cmd === "models") {
+  await models();
 } else {
   console.error(`usage:
   bun chatlog.ts search <query> [--source claude|codex|all] [--days N] [--project sub] [--files N] [--hits N] [--tools] [--paths-only]
   bun chatlog.ts show <session-id|path> [--grep re] [--tools] [--width N] [--tail N] [--last]
   bun chatlog.ts prompts [--days N] [--project sub] [--grep re] [--width N] [--tail N] [--include-agents] [--prev]
   bun chatlog.ts sessions [--source claude|codex|all] [--days N] [--project sub] [--limit N] [--include-agents]
+  bun chatlog.ts models [--days N] [--project sub]
   bun chatlog.ts selfcheck`);
   process.exit(1);
 }

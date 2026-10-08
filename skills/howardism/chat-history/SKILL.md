@@ -6,7 +6,7 @@ description: 'Search past Claude Code transcripts and Codex rollouts from one CL
 
 # chat-history
 
-One script, five commands. Invoke it by the literal `${CLAUDE_SKILL_DIR}` path
+One script, six commands. Invoke it by the literal `${CLAUDE_SKILL_DIR}` path
 below: the `allowed-tools` entry matches that text, so assigning the path to a
 shell variable first costs a permission prompt on every call.
 
@@ -105,6 +105,14 @@ bun $S/scripts/chatlog.ts sessions [--source claude|codex|all] [--days N] [--pro
 ```
 
 Newest-first, one line per session: mtime, label, session id, first user prompt (truncated ~100 chars), path. Defaults to `--days 7`, `--limit 20`. Three kinds of worker transcript are excluded by default: Claude `subagents/` files, named workers (top-level files whose records carry `agentName`; without the filter they list as sessions with a blank prompt), and Codex rollouts spawned by a parent thread. `--include-agents` lists them too, a named worker as `[agent:<name>] <brief>`. Codex rows skip the injected AGENTS.md block and show the first typed prompt. To read a worker's closing report: `sessions --include-agents --days 1 --project <cwd>`, then `show <id> --last`; guessing the file path fails, because a named worker's file sits beside the human's sessions and a worktree session's workers sit under the worktree's own project directory.
+
+## models
+
+```
+bun $S/scripts/chatlog.ts models [--days N] [--project sub]
+```
+
+Claude subagents only: compares the model each parent requested (`model` in the subagent's `.meta.json`) with the model that ran (assistant records in its transcript). Prints a tally (`count  agentType  requested -> resolved  (CLI versions)`, newest alias resolution visible per CLI version range), then flags: alias drift (one alias resolving to several model ids, with version range and first/last date), mid-task switch, never ran, unpinned, and Explore/Plan on the strong tier. Each flag line names the session id and subagent file, so `show <session-id>` can open the worker. Defaults to `--days 30` (`--days 0` = unlimited). Run it before trusting a tier label, or after a CLI upgrade, to see which model an alias now resolves to.
 
 ## Notes
 
