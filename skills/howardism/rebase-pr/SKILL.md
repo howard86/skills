@@ -9,6 +9,8 @@ Input is a PR URL or number. The job ends at a verified force-push; watching CI 
 
 ## 1. Read the PR and decide whether it needs a rebase
 
+A "Precomputed rebase state" block injected at load is measured against the current checkout, not the PR branch: when the session sits on the base branch it reports "0 behind" and a clean merge-tree for a PR that conflicts (#1460). Trust only the compare API below.
+
 ```bash
 gh pr view <ref> --json number,url,headRefName,headRefOid,baseRefName,isCrossRepository,maintainerCanModify,mergeable
 ```
